@@ -35,10 +35,12 @@ struct TabRepo: Equatable {
         return repo
     }
 
-    private static func run(_ path: String, _ args: [String]) -> String {
+    /// Stdout of a program, "" when it can't start. Blocks, so call it off the main thread.
+    static func run(_ path: String, _ args: [String], in dir: String? = nil) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = args
+        process.currentDirectoryURL = dir.map { URL(fileURLWithPath: $0) }
         let out = Pipe()
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice
