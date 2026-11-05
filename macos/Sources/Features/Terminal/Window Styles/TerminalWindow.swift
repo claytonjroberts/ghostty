@@ -69,6 +69,16 @@ class TerminalWindow: NSWindow {
         }
     }
 
+    /// Claylib: the Claude session in this tab's focused terminal.
+    var claudeTab: ClaudeTab? {
+        didSet {
+            guard claudeTab != oldValue else { return }
+            claudeAccountIndicator.rootView = ClaudeAccountIndicator(color: claudeTab?.account?.color)
+        }
+    }
+
+    private lazy var claudeAccountIndicator = NSHostingView(rootView: ClaudeAccountIndicator(color: nil))
+
     // MARK: NSWindow Overrides
 
     override var toolbar: NSToolbar? {
@@ -166,6 +176,7 @@ class TerminalWindow: NSWindow {
         stackView.setHuggingPriority(.defaultHigh, for: .horizontal)
         stackView.spacing = 4
         stackView.alignment = .centerY
+        stackView.addArrangedSubview(claudeAccountIndicator)
         stackView.addArrangedSubview(tabColorIndicator)
         stackView.addArrangedSubview(keyEquivalentLabel)
         stackView.addArrangedSubview(resetZoomTabButton)
