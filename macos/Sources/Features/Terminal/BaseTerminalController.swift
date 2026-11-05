@@ -893,11 +893,13 @@ class BaseTerminalController: NSWindowController,
                 .map { [weak titleSurface] tabs in titleSurface?.surfaceModel?.ttyName.flatMap { tabs[$0] } }
                 .removeDuplicates()
             titleSurface.$title
-                .combineLatest(titleSurface.$bell, claude)
-                .sink { [weak self] title, bell, claude in
+                .combineLatest(titleSurface.$bell, claude, $claylibRepo)
+                .sink { [weak self] title, bell, claude, repo in
                     guard let self else { return }
                     (window as? TerminalWindow)?.claudeTab = claude
-                    titleDidChange(to: computeTitle(title: claude?.title(fallback: title) ?? title, bell: bell))
+                    // The session's title, else the branch, else the shell's title.
+                    let base = repo?.branch ?? title
+                    titleDidChange(to: computeTitle(title: claude?.title(fallback: base) ?? base, bell: bell))
                 }
                 .store(in: &focusedSurfaceCancellables)
         } else {
@@ -942,7 +944,20 @@ class BaseTerminalController: NSWindowController,
         } else {
             window.representedURL = nil
         }
+
+        // Claylib: the tab takes its directory's repo, and moves beside that repo's other tabs.
+        guard let dir = to?.path else { return }
+        Task { @MainActor [weak self] in
+            let repo = await TabRepo.lookup(dir)
+            guard let self, let window = window as? TerminalWindow else { return }
+            claylibRepo = repo
+            window.tabRepo = repo
+            TabGrouping.regroup(window)
+        }
     }
+
+    /// Claylib: the repo of the focused terminal's directory.
+    @Published private(set) var claylibRepo: TabRepo?
 
     func cellSizeDidChange(to: NSSize) {
         guard derivedConfig.windowStepResize else { return }

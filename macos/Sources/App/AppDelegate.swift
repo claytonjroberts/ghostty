@@ -238,6 +238,9 @@ class AppDelegate: NSObject,
         // This registers the Ghostty => Services menu to exist.
         NSApp.servicesMenu = menuServices
 
+        // Claylib: dock badge, bounce and jump for Claude sessions that need you.
+        ClaudeAttention.shared.install()
+
         // Setup a local event monitor for app-level keyboard shortcuts. See
         // localEventHandler for more info why.
         _ = NSEvent.addLocalMonitorForEvents(
