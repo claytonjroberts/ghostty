@@ -888,10 +888,17 @@ class BaseTerminalController: NSWindowController,
         if let titleSurface = focusedSurface ?? lastFocusedSurface,
            surfaceTree.contains(titleSurface) {
             // If we have a surface, we want to listen for title changes.
+            // Claylib: the Claude session in this terminal titles the tab and colors its account block.
+            let claude = ClaudeSessions.shared.$byTTY
+                .map { [weak titleSurface] tabs in titleSurface?.surfaceModel?.ttyName.flatMap { tabs[$0] } }
+                .removeDuplicates()
             titleSurface.$title
-                .combineLatest(titleSurface.$bell)
-                .map { [weak self] in self?.computeTitle(title: $0, bell: $1) ?? "" }
-                .sink { [weak self] in self?.titleDidChange(to: $0) }
+                .combineLatest(titleSurface.$bell, claude)
+                .sink { [weak self] title, bell, claude in
+                    guard let self else { return }
+                    (window as? TerminalWindow)?.claudeTab = claude
+                    titleDidChange(to: computeTitle(title: claude?.title(fallback: title) ?? title, bell: bell))
+                }
                 .store(in: &focusedSurfaceCancellables)
         } else {
             // There is no surface to listen to titles for.
