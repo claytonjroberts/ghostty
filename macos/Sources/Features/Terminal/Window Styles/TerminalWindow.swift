@@ -74,6 +74,11 @@ class TerminalWindow: NSWindow {
         didSet { if claudeTab != oldValue { ClaylibTabs.shared.changed() } }
     }
 
+    /// Claylib: the tab's name without the Claude mark, for the tab strip, which draws the status itself.
+    var tabName = "" {
+        didSet { if tabName != oldValue { ClaylibTabs.shared.changed() } }
+    }
+
     /// Claylib: the repo of this tab's focused terminal; tabs of a repo are kept together.
     var tabRepo: TabRepo? {
         didSet { if tabRepo != oldValue { ClaylibTabs.shared.changed() } }

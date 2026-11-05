@@ -15,25 +15,25 @@ struct StripTab: Equatable {
     /// "" outside a repo, drawn as "other".
     let repo: String
     let color: NSColor?
-    let account: NSColor?
-    /// The window title: the Claude mark and session name, else the branch, else the shell's title.
-    let title: String
+    let account: ClaudeAccount?
+    let status: ClaudeSession.Status?
+    let name: String
     let key: String
     let active: Bool
 
     @MainActor
     init(window: NSWindow) {
         let terminal = window as? TerminalWindow
+        let surface = (window.windowController as? BaseTerminalController)?.focusedSurface
         self.window = window
         repo = terminal?.tabRepo?.name ?? ""
         color = terminal?.tabRepo?.color
-        let surface = (window.windowController as? BaseTerminalController)?.focusedSurface
-        account = ClaudeSessions.shared.account(tty: surface?.surfaceModel?.ttyName, dir: surface?.pwd)?.color
-        title = window.title
+        account = ClaudeSessions.shared.account(tty: surface?.surfaceModel?.ttyName, dir: surface?.pwd)
+        status = terminal?.claudeTab?.session.status
+        name = terminal?.tabName.isEmpty == false ? terminal?.tabName ?? "" : window.title
         key = terminal?.keyEquivalent ?? ""
         active = window.tabGroup?.selectedWindow === window
     }
-
 }
 
 /// Runs of neighbors with the same key; TabGrouping keeps each repo's tabs together, so runs of
@@ -44,10 +44,11 @@ func runs<T>(_ items: [T], by key: (T) -> String) -> [[T]] {
     }
 }
 
-/// Claylib: the window's tabs grouped under their repo's label, in place of the native tab bar
-/// (hidden by TerminalWindow). A tab is a pill in its repo's color, full for the selected one
-/// and blended into the strip for the rest, with a block in its Claude account's color. The +
-/// after a group opens a tab beside it, in its directory, running Claude.
+/// Claylib: the window's tabs in place of the native tab bar (hidden by TerminalWindow), grouped
+/// Safari style: each repo's label in its color, then its tabs underlined in that color. The
+/// selected tab is raised into the terminal's background. A tab shows its Claude status, the
+/// account it bills to and its name, a close button on hover, and its key in its tooltip. The + after a group
+/// opens a tab beside it, in its directory, running Claude.
 struct ClaylibTabStrip: View {
     /// Any terminal in the window; its window is read on every redraw, as tabs move between windows.
     let surface: Ghostty.SurfaceView?
@@ -59,34 +60,33 @@ struct ClaylibTabStrip: View {
     var body: some View {
         let windows = surface?.window.map { $0.tabGroup?.windows ?? [$0] } ?? []
         let groups = runs(windows.map(StripTab.init(window:)), by: \.repo)
-        FlowLayout(spacing: 8) {
-            ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                // The label stays on its first tab's row and the + on its last tab's.
-                ForEach(Array(group.enumerated()), id: \.offset) { index, tab in
-                    HStack(spacing: 8) {
-                        if index == 0 { Flag(repo: tab.repo, color: shade(tab.color)) }
-                        Pill(tab: tab, color: shade(tab.color), strip: strip)
-                        if index == group.count - 1 {
-                            Button { newTab(beside: tab.window) } label: {
-                                Text("+").bold().foregroundStyle(Color(shade(tab.color)))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+        // shortcut: past what fits, tabs shrink and their names truncate; no overflow scrolling yet.
+        // Tabs are direct children of one stack, so they share its width evenly.
+        HStack(spacing: 1) {
+            ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
+                let color = Color(group[0].color ?? .systemGray)
+                GroupLabel(repo: group[0].repo, color: group[0].color ?? .systemGray)
+                    .padding(.leading, index == 0 ? 0 : 6)
+                    .padding(.trailing, 4)
+                ForEach(Array(group.enumerated()), id: \.offset) { _, tab in
+                    TabView(tab: tab, color: color, background: background)
                 }
+                Button { newTab(beside: group[group.count - 1].window) } label: {
+                    Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("New tab in \(group[0].repo.isEmpty ? "this directory" : group[0].repo), running Claude")
             }
         }
-        .font(.system(size: 12, design: .monospaced))
         .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity, minHeight: 32, alignment: .bottomLeading)
         .background(Color(strip))
         .id(tabs.revision)
     }
 
-    private var strip: NSColor { NSColor(background).blended(withFraction: 0.06, of: .black) ?? NSColor(background) }
-
-    private func shade(_ color: NSColor?) -> NSColor { color ?? .systemGray }
+    private var strip: NSColor { NSColor(background).blended(withFraction: 0.07, of: .black) ?? NSColor(background) }
 
     private func newTab(beside window: NSWindow) {
         guard let ghostty = (NSApp.delegate as? AppDelegate)?.ghostty else { return }
@@ -101,79 +101,83 @@ struct ClaylibTabStrip: View {
 func readable(on color: NSColor) -> NSColor {
     guard let rgb = color.usingColorSpace(.sRGB) else { return .labelColor }
     let luma = 0.299 * rgb.redComponent + 0.587 * rgb.greenComponent + 0.114 * rgb.blueComponent
-    return luma > 0.59 ? NSColor(srgbRed: 0.16, green: 0.16, blue: 0.16, alpha: 1) : NSColor(srgbRed: 0.98, green: 0.95, blue: 0.78, alpha: 1)
+    return luma > 0.59 ? NSColor(srgbRed: 0.16, green: 0.16, blue: 0.16, alpha: 1) : .white
 }
 
-/// A repo's label: square and bold, so it never reads as a tab.
-private struct Flag: View {
+private struct GroupLabel: View {
     let repo: String
     let color: NSColor
 
     var body: some View {
-        Text(repo.isEmpty ? "other" : String(repo.prefix(12)))
-            .bold()
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+        Text(repo.isEmpty ? "other" : repo)
+            .font(.system(size: 11, weight: .semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
             .foregroundStyle(Color(readable(on: color)))
-            .background(Color(color))
+            .background(Capsule().fill(Color(color)))
+            .padding(.bottom, 4)
+            .fixedSize()
     }
 }
 
-private struct Pill: View {
+private struct TabView: View {
     let tab: StripTab
-    let color: NSColor
-    let strip: NSColor
+    let color: Color
+    let background: Color
     @State private var hovered = false
 
     var body: some View {
-        let fill = tab.active ? color : color.blended(withFraction: hovered ? 0.25 : 0.5, of: strip) ?? color
-        HStack(spacing: 4) {
-            if let account = tab.account {
-                RoundedRectangle(cornerRadius: 1.5).fill(Color(account)).frame(width: 6, height: 12)
+        HStack(spacing: 6) {
+            StatusIcon(status: tab.status)
+            if let account = tab.account?.color {
+                Circle().fill(Color(account)).frame(width: 7, height: 7).help(tab.account?.label ?? "")
             }
-            Text("\(tab.key.isEmpty ? "" : tab.key + " ")\(String(tab.title.prefix(28)))")
-                .bold(tab.active)
+            Text(tab.name)
+                .font(.system(size: 12, weight: tab.active ? .semibold : .regular))
                 .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if hovered {
+                Button { tab.window.performClose(nil) } label: {
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 2)
-        .foregroundStyle(Color(readable(on: fill)))
-        .background(Capsule().fill(Color(fill)))
-        .contentShape(Capsule())
+        .padding(.horizontal, 8)
+        .help([tab.name, tab.key, tab.account?.label].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "  ·  "))
+        // Tabs share the strip evenly, as Safari's do, up to a cap.
+        .frame(minWidth: 56, maxWidth: 220, minHeight: 26)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
+                .fill(tab.active ? background : Color.primary.opacity(hovered ? 0.06 : 0))
+                .shadow(color: .black.opacity(tab.active ? 0.15 : 0), radius: 1.5, y: -0.5))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(color).frame(height: tab.active ? 3 : 2).opacity(tab.active ? 1 : 0.7)
+        }
+        .contentShape(Rectangle())
         .onHover { hovered = $0 }
-        .animation(.easeOut(duration: 0.1), value: hovered)
+        .animation(.easeOut(duration: 0.12), value: hovered)
         .onTapGesture { tab.window.tabGroup?.selectedWindow = tab.window }
     }
 }
 
-/// Lays its views out left to right, wrapping onto a new row when one is full.
-private struct FlowLayout: Layout {
-    let spacing: CGFloat
+/// Claude's state in a tab: waiting on a choice, done and waiting on you, or working.
+private struct StatusIcon: View {
+    let status: ClaudeSession.Status?
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
-        return CGSize(width: proposal.width ?? rows.map(\.maxX).max() ?? 0, height: rows.last.map { $0.minY + $0.height } ?? 0)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        for (frame, subview) in zip(arrange(width: bounds.width, subviews: subviews).flatMap(\.frames), subviews) {
-            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
+    var body: some View {
+        switch status {
+        case .waiting: icon("questionmark.circle.fill", .orange, "Waiting on your choice")
+        case .idle: icon("checkmark.circle.fill", .green, "Done, your turn")
+        case .busy: icon("arrow.triangle.2.circlepath", .blue, "Working")
+        case .shell, nil: EmptyView()
         }
     }
 
-    private struct Row { var frames: [CGRect] = []; var minY: CGFloat; var height: CGFloat = 0; var maxX: CGFloat { frames.last?.maxX ?? 0 } }
-
-    private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
-        var rows = [Row(minY: 0)]
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if !rows[rows.count - 1].frames.isEmpty && rows[rows.count - 1].maxX + spacing + size.width > width {
-                rows.append(Row(minY: rows[rows.count - 1].minY + rows[rows.count - 1].height + 4))
-            }
-            let x = rows[rows.count - 1].frames.isEmpty ? 0 : rows[rows.count - 1].maxX + spacing
-            rows[rows.count - 1].frames.append(CGRect(origin: CGPoint(x: x, y: rows[rows.count - 1].minY), size: size))
-            rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
-        }
-        return rows
+    private func icon(_ name: String, _ color: Color, _ help: String) -> some View {
+        Image(systemName: name).font(.system(size: 11)).foregroundStyle(color).help(help)
     }
 }

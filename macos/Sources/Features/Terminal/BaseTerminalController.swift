@@ -896,9 +896,10 @@ class BaseTerminalController: NSWindowController,
                 .combineLatest(titleSurface.$bell, claude, $claylibRepo)
                 .sink { [weak self] title, bell, claude, repo in
                     guard let self else { return }
-                    (window as? TerminalWindow)?.claudeTab = claude
                     // The session's title, else the branch, else the shell's title.
                     let base = repo?.branch ?? title
+                    (window as? TerminalWindow)?.tabName = claude?.name(fallback: base) ?? base
+                    (window as? TerminalWindow)?.claudeTab = claude
                     titleDidChange(to: computeTitle(title: claude?.title(fallback: base) ?? base, bell: bell))
                 }
                 .store(in: &focusedSurfaceCancellables)

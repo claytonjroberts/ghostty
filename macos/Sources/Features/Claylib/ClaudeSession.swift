@@ -127,9 +127,12 @@ struct ClaudeTab: Equatable {
     let session: ClaudeSession
     let account: ClaudeAccount?
 
-    /// The tab's title: the status mark, then the session's title when it has one, else `fallback`.
+    /// The session's title when it has one, else `fallback`.
+    func name(fallback: String) -> String { session.title ?? fallback }
+
+    /// The window title: the status mark, then the name.
     func title(fallback: String) -> String {
-        let name = session.title ?? fallback
+        let name = name(fallback: fallback)
         return session.status.mark.isEmpty ? name : "\(session.status.mark) \(name)"
     }
 }
