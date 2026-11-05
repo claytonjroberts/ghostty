@@ -73,6 +73,11 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
         case .ready:
             ZStack {
                 VStack(spacing: 0) {
+                    // Claylib: this window's tabs, grouped by repo.
+                    ClaylibTabStrip(
+                        surface: lastFocusedSurface?.value,
+                        background: ghostty.config.backgroundColor)
+
                     // If we're running in debug mode we show a warning so that users
                     // know that performance will be degraded.
                     if Ghostty.info.mode == GHOSTTY_BUILD_MODE_DEBUG || Ghostty.info.mode == GHOSTTY_BUILD_MODE_RELEASE_SAFE {

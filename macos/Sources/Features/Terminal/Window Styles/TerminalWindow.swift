@@ -71,18 +71,12 @@ class TerminalWindow: NSWindow {
 
     /// Claylib: the Claude session in this tab's focused terminal.
     var claudeTab: ClaudeTab? {
-        didSet { if claudeTab != oldValue { updateClaylibBadge() } }
+        didSet { if claudeTab != oldValue { ClaylibTabs.shared.changed() } }
     }
 
     /// Claylib: the repo of this tab's focused terminal; tabs of a repo are kept together.
     var tabRepo: TabRepo? {
-        didSet { if tabRepo != oldValue { updateClaylibBadge() } }
-    }
-
-    private lazy var claylibBadge = NSHostingView(rootView: ClaylibTabBadge(repo: nil, account: nil))
-
-    private func updateClaylibBadge() {
-        claylibBadge.rootView = ClaylibTabBadge(repo: tabRepo?.color, account: claudeTab?.account?.color)
+        didSet { if tabRepo != oldValue { ClaylibTabs.shared.changed() } }
     }
 
     // MARK: NSWindow Overrides
@@ -182,7 +176,6 @@ class TerminalWindow: NSWindow {
         stackView.setHuggingPriority(.defaultHigh, for: .horizontal)
         stackView.spacing = 4
         stackView.alignment = .centerY
-        stackView.addArrangedSubview(claylibBadge)
         stackView.addArrangedSubview(tabColorIndicator)
         stackView.addArrangedSubview(keyEquivalentLabel)
         stackView.addArrangedSubview(resetZoomTabButton)
@@ -217,6 +210,7 @@ class TerminalWindow: NSWindow {
 
     override func becomeKey() {
         super.becomeKey()
+        ClaylibTabs.shared.changed()
         resetZoomTabButton.contentTintColor = .controlAccentColor
     }
 
@@ -277,6 +271,9 @@ class TerminalWindow: NSWindow {
         // it. This has been verified to work on macOS 12 to 26
         if isTabBar(childViewController) {
             childViewController.identifier = Self.tabBarIdentifier
+            // Claylib: ClaylibTabStrip draws the tabs. They stay native; only their bar is hidden
+            // (toggleTabBar refuses while a window has more than one tab).
+            childViewController.isHidden = true
             tabBarDidAppear()
         }
     }
@@ -343,6 +340,7 @@ class TerminalWindow: NSWindow {
 
     var keyEquivalent: String? {
         didSet {
+            ClaylibTabs.shared.changed()
             // When our key equivalent is set, we must update the tab label.
             guard let keyEquivalent else {
                 keyEquivalentLabel.attributedStringValue = NSAttributedString()
@@ -409,6 +407,7 @@ class TerminalWindow: NSWindow {
             // tab title if we're using custom fonts.
             tab.attributedTitle = attributedTitle
             guard title != oldValue else { return }
+            ClaylibTabs.shared.changed()
 
             syncWindowTitleAppearance()
         }

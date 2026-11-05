@@ -93,8 +93,8 @@ Each phase ships something usable on its own.
 
 1. **Drop tmux: decided.** Everything that moved into tmux panes (tab bar, stats, account box)
    lives in Ghostty instead. Phase 5 deletes the tmux UI.
-2. **Tab grouper**: start with step A (native tabs, sorted and colored) and move to B only if repo
-   labels are missed.
+2. **Tab grouper**: B, decided. Native tabs keep the order and keys; their bar is hidden and
+   `ClaylibTabStrip` draws the groups. Not ported from `tabs.tsx`: drag to reorder in the strip.
 3. **Billing account scope**: the account label and color per tab. If "billing" should also mean
    usage or cost, we need a data source: Claude Code doesn't expose per-account spend in the registry.
 
