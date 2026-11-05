@@ -21,12 +21,14 @@ struct StripTab: Equatable {
     let key: String
     let active: Bool
 
+    @MainActor
     init(window: NSWindow) {
         let terminal = window as? TerminalWindow
         self.window = window
         repo = terminal?.tabRepo?.name ?? ""
         color = terminal?.tabRepo?.color
-        account = terminal?.claudeTab?.account?.color
+        let surface = (window.windowController as? BaseTerminalController)?.focusedSurface
+        account = ClaudeSessions.shared.account(tty: surface?.surfaceModel?.ttyName, dir: surface?.pwd)?.color
         title = window.title
         key = terminal?.keyEquivalent ?? ""
         active = window.tabGroup?.selectedWindow === window
@@ -52,6 +54,7 @@ struct ClaylibTabStrip: View {
     let background: Color
 
     @ObservedObject private var tabs = ClaylibTabs.shared
+    @ObservedObject private var sessions = ClaudeSessions.shared
 
     var body: some View {
         let windows = surface?.window.map { $0.tabGroup?.windows ?? [$0] } ?? []

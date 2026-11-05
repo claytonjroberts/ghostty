@@ -112,6 +112,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     // Claylib: the Claude account and machine stats under the terminals.
                     ClaylibStatusBar(
                         tty: lastFocusedSurface?.value?.surfaceModel?.ttyName,
+                        dir: lastFocusedSurface?.value?.pwd,
                         background: ghostty.config.backgroundColor)
                 }
                 // Ignore safe area to extend up in to the titlebar region if we have the "hidden" titlebar style

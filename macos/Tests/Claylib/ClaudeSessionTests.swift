@@ -34,10 +34,21 @@ struct ClaudeSessionTests {
          {"label": "dup", "config_dir": "~/.claude-accounts/reservedai", "color": 31},
          {"label": "per", "config_dir": "/abs/personal", "color": "d79921"}]
         """.utf8)
-        let accounts = ClaudeAccount.parse(rules: rules, home: "/Users/me")
+        let accounts = ClaudeAccounts(rules: rules, home: "/Users/me").byDir
         #expect(accounts["/Users/me/.claude-accounts/reservedai"] == ClaudeAccount(label: "rai", color: .systemBlue))
         #expect(accounts["/abs/personal"]?.label == "per")
         #expect(accounts["/abs/personal"]?.color != nil)
+    }
+
+    @Test func directoryRoutesToTheFirstMatchingRule() {
+        let rules = Data("""
+        [{"pattern": "*/repos/_reserved_ai*", "label": "rai", "config_dir": "~/a", "color": 34},
+         {"pattern": "*", "label": "per", "config_dir": "~/b", "color": 35}]
+        """.utf8)
+        let accounts = ClaudeAccounts(rules: rules, home: "/Users/me")
+        #expect(accounts.routed("/Users/me/repos/_reserved_ai/reserved-ai/api")?.label == "rai")
+        #expect(accounts.routed("/Users/me/repos/claylib")?.label == "per")
+        #expect(ClaudeAccounts().routed("/x") == nil)
     }
 
     @Test func colorsFromAnsiOrHex() {
