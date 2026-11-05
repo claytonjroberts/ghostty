@@ -8,9 +8,9 @@ final class ClaudeSessions: ObservableObject {
     static let shared = ClaudeSessions()
 
     @Published private(set) var byTTY: [String: ClaudeTab] = [:]
+    @Published private(set) var accounts = ClaudeAccounts()
 
     private let home = FileManager.default.homeDirectoryForCurrentUser.path
-    private var accounts: [String: ClaudeAccount] = [:]
     private var watcher: FileWatcher?
 
     private init() {
@@ -42,7 +42,7 @@ final class ClaudeSessions: ObservableObject {
                       let session = ClaudeSession(json: data),
                       let tty = Self.tty(of: session.pid),
                       tabs[tty] == nil else { continue }
-                tabs[tty] = ClaudeTab(session: session, account: accounts[dir])
+                tabs[tty] = ClaudeTab(session: session, account: accounts.byDir[dir])
             }
         }
         if tabs != byTTY { byTTY = tabs }
@@ -61,7 +61,12 @@ final class ClaudeSessions: ObservableObject {
         guard (try? process.run()) != nil else { return }
         let rules = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        accounts = ClaudeAccount.parse(rules: rules, home: home)
+        accounts = ClaudeAccounts(rules: rules, home: home)
+    }
+
+    /// The account a terminal bills to: its Claude session's, else the one its directory routes to.
+    func account(tty: String?, dir: String?) -> ClaudeAccount? {
+        tty.flatMap { byTTY[$0] }?.account ?? dir.flatMap(accounts.routed)
     }
 
     private func changed(_ paths: [String]) {

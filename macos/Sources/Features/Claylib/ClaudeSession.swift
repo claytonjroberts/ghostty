@@ -45,23 +45,38 @@ struct ClaudeSession: Equatable {
 }
 
 /// A Claude account, from the rules in `~/.config/claude-accounts.yaml`.
+/// The accounts in ~/.config/claude-accounts.yaml, from its rules as JSON (`yq -o json .rules`).
+struct ClaudeAccounts: Equatable {
+    /// By config dir with `~` expanded; the first rule for a dir wins, as it does for fish.
+    private(set) var byDir: [String: ClaudeAccount] = [:]
+    private var routes: [(pattern: String, account: ClaudeAccount)] = []
+
+    init() {}
+
+    init(rules: Data, home: String) {
+        guard let rules = try? JSONDecoder().decode([ClaudeAccount.Rule].self, from: rules) else { return }
+        for rule in rules {
+            let account = ClaudeAccount(label: rule.label, color: rule.color.flatMap(ClaudeAccount.color(of:)))
+            let dir = rule.configDir.hasPrefix("~/") ? home + rule.configDir.dropFirst() : rule.configDir
+            if byDir[dir] == nil { byDir[dir] = account }
+            if let pattern = rule.pattern { routes.append((pattern, account)) }
+        }
+    }
+
+    /// The account `claude` started in `dir` bills to: the first rule whose glob matches, as
+    /// fish's `claude-account` routes it. A shell pinned to another account isn't seen here.
+    func routed(_ dir: String) -> ClaudeAccount? {
+        routes.first { fnmatch($0.pattern, dir, 0) == 0 }?.account
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.byDir == rhs.byDir && lhs.routes.elementsEqual(rhs.routes) { $0.pattern == $1.pattern && $0.account == $1.account }
+    }
+}
+
 struct ClaudeAccount: Equatable {
     let label: String
     let color: NSColor?
-
-    /// The accounts by config dir with `~` expanded, from the rules as JSON (`yq -o json .rules`).
-    static func parse(rules: Data, home: String) -> [String: ClaudeAccount] {
-        guard let rules = try? JSONDecoder().decode([Rule].self, from: rules) else { return [:] }
-        var accounts: [String: ClaudeAccount] = [:]
-        for rule in rules {
-            let dir = rule.configDir.hasPrefix("~/") ? home + rule.configDir.dropFirst() : rule.configDir
-            // The first rule for a dir wins, as it does for the fish helper.
-            if accounts[dir] == nil {
-                accounts[dir] = ClaudeAccount(label: rule.label, color: rule.color.flatMap(color(of:)))
-            }
-        }
-        return accounts
-    }
 
     /// An ANSI foreground code (31-36) or a hex color.
     static func color(of value: String) -> NSColor? {
@@ -83,13 +98,15 @@ struct ClaudeAccount: Equatable {
         }
     }
 
-    private struct Rule: Decodable {
+    fileprivate struct Rule: Decodable {
+        let pattern: String?
         let label: String
         let configDir: String
         let color: String?
 
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
+            pattern = try? values.decode(String.self, forKey: .pattern)
             label = try values.decode(String.self, forKey: .label)
             configDir = try values.decode(String.self, forKey: .configDir)
             // The YAML writes ANSI codes as bare numbers.
@@ -99,7 +116,7 @@ struct ClaudeAccount: Equatable {
 
         // swiftlint:disable:next nesting
         private enum CodingKeys: String, CodingKey {
-            case label, color
+            case pattern, label, color
             case configDir = "config_dir"
         }
     }

@@ -3,8 +3,9 @@ import SwiftUI
 /// Claylib's bar under each window's terminals: the focused terminal's Claude account on the
 /// left, the machine's stats on the right, each in an outline.
 struct ClaylibStatusBar: View {
-    /// The focused terminal's tty, for its Claude account.
+    /// The focused terminal's tty and directory, for the Claude account it bills to.
     let tty: String?
+    let dir: String?
     /// The terminal's background, behind the outline titles.
     let background: Color
 
@@ -13,7 +14,7 @@ struct ClaylibStatusBar: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            if let account = tty.flatMap({ sessions.byTTY[$0] })?.account {
+            if let account = sessions.account(tty: tty, dir: dir) {
                 Outlined(title: nil, background: background) {
                     Text(account.label).bold().foregroundColor(account.color.map(Color.init))
                 }
