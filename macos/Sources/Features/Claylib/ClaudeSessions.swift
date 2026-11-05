@@ -1,9 +1,8 @@
-import CoreServices
 import Darwin
 import Foundation
 
 /// Every live Claude Code session on this machine by the tty it runs in. Kept current by
-/// FSEvents on Claude's session registries and on the accounts file, so nothing polls.
+/// watching Claude's session registries and the accounts file, so nothing polls.
 @MainActor
 final class ClaudeSessions: ObservableObject {
     static let shared = ClaudeSessions()
@@ -12,12 +11,14 @@ final class ClaudeSessions: ObservableObject {
 
     private let home = FileManager.default.homeDirectoryForCurrentUser.path
     private var accounts: [String: ClaudeAccount] = [:]
-    private var stream: FSEventStreamRef?
+    private var watcher: FileWatcher?
 
     private init() {
         loadAccounts()
         reload()
-        watch()
+        watcher = FileWatcher(paths: configDirs.map { $0 + "/sessions" } + [home + "/.config"]) { [weak self] paths in
+            self?.changed(paths)
+        }
     }
 
     /// Claude's config dirs: `~/.claude` and each account under `~/.claude-accounts`.
@@ -61,34 +62,6 @@ final class ClaudeSessions: ObservableObject {
         let rules = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         accounts = ClaudeAccount.parse(rules: rules, home: home)
-    }
-
-    private func watch() {
-        let paths = configDirs.map { $0 + "/sessions" } + [home + "/.config"]
-        var context = FSEventStreamContext(
-            version: 0,
-            info: Unmanaged.passUnretained(self).toOpaque(),
-            retain: nil,
-            release: nil,
-            copyDescription: nil)
-        let callback: FSEventStreamCallback = { _, info, _, paths, _, _ in
-            guard let info else { return }
-            let sessions = Unmanaged<ClaudeSessions>.fromOpaque(info).takeUnretainedValue()
-            let changed = unsafeBitCast(paths, to: NSArray.self) as? [String] ?? []
-            MainActor.assumeIsolated { sessions.changed(changed) }
-        }
-        let flags = kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes
-        guard let stream = FSEventStreamCreate(
-            nil,
-            callback,
-            &context,
-            paths as CFArray,
-            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-            0.2,
-            FSEventStreamCreateFlags(flags)) else { return }
-        FSEventStreamSetDispatchQueue(stream, .main)
-        FSEventStreamStart(stream)
-        self.stream = stream
     }
 
     private func changed(_ paths: [String]) {

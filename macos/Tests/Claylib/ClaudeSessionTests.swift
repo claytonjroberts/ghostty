@@ -51,3 +51,19 @@ struct ClaudeSessionTests {
         #expect(ClaudeSessions.tty(of: 999_999) == nil)
     }
 }
+
+struct ClaudeAttentionTests {
+    @Test func stoppingNeedsYou() {
+        #expect(ClaudeAttention.justStopped(from: ["a": .busy], to: ["a": .idle]))
+        #expect(ClaudeAttention.justStopped(from: ["a": .busy], to: ["a": .waiting]))
+        #expect(ClaudeAttention.justStopped(from: ["a": .idle], to: ["a": .waiting]))
+    }
+
+    @Test func noChangeOrNewSessionIsQuiet() {
+        #expect(!ClaudeAttention.justStopped(from: ["a": .idle], to: ["a": .idle]))
+        #expect(!ClaudeAttention.justStopped(from: [:], to: ["a": .waiting]))
+        #expect(!ClaudeAttention.justStopped(from: ["a": .idle], to: ["a": .busy]))
+        // Answering a choice and then finishing is one stop, already announced.
+        #expect(!ClaudeAttention.justStopped(from: ["a": .waiting], to: ["a": .idle]))
+    }
+}
