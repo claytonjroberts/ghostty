@@ -1,3 +1,4 @@
+import AppKit
 import Testing
 @testable import Ghostty
 
@@ -27,5 +28,17 @@ struct TabGroupingTests {
         #expect(none.name == "")
         #expect(none.color == nil)
         #expect(none.branch == nil)
+    }
+}
+
+struct TabStripTests {
+    @Test func groupsAreRunsOfOneRepo() {
+        #expect(runs(["a", "a", "", "b", "b"], by: { $0 }) == [["a", "a"], [""], ["b", "b"]])
+        #expect(runs([String](), by: { $0 }).isEmpty)
+    }
+
+    @Test func darkTextOnLightColors() {
+        #expect(readable(on: .white) != readable(on: .black))
+        #expect(readable(on: .white) == readable(on: .systemYellow))
     }
 }
