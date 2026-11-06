@@ -20,16 +20,16 @@ struct StatsTests {
         #expect(Stats(samples: [], now: now) == nil)
     }
 
-    @Test func batteryRatePerSpan() throws {
+    @Test func batteryRate() throws {
         // Draining 1% a minute: -60%/h whatever the span.
         let stats = try #require(Stats(samples: samples(span: 3000, step: 60) { 50 + $0 / 60 }, now: now))
-        #expect(stats.battery?.rates == [-60, -60, -60])
+        #expect(stats.battery?.rate == -60)
         #expect(stats.battery?.percent == 50)
     }
 
     @Test func underAMinuteOfSamplesIsNoRate() throws {
         let stats = try #require(Stats(samples: samples(span: 55) { _ in 80 }, now: now))
-        #expect(stats.battery?.rates == [nil, nil, nil])
+        #expect(stats.battery?.rate == nil)
     }
 
     @Test func noBatteryIsNoBattery() throws {
@@ -54,8 +54,8 @@ struct StatsTests {
         #expect(Stats.rateLevel(3) == .good)
         #expect(Stats.rateLevel(-10) == .warn)
         #expect(Stats.rateLevel(-20) == .alert)
-        #expect(Stats.batteryLevel(.init(percent: 15, charging: false, rates: [])) == .alert)
-        #expect(Stats.batteryLevel(.init(percent: 15, charging: true, rates: [])) == .good)
+        #expect(Stats.batteryLevel(.init(percent: 15, charging: false, rate: nil)) == .alert)
+        #expect(Stats.batteryLevel(.init(percent: 15, charging: true, rate: nil)) == .good)
     }
 
     @Test func rates() {

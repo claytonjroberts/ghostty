@@ -115,21 +115,14 @@ private struct StatsWidgets: View {
             .frame(width: 70, alignment: .trailing)
 
             if let battery = stats.battery {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Labeled("BAT", "\(battery.percent)%", Stats.batteryLevel(battery))
-                    Image(systemName: Self.symbol(battery))
-                        .foregroundColor(color(Stats.batteryLevel(battery)))
+                    Labeled("%/H", battery.rate.map { ($0 > 0 ? "+" : "") + "\($0)" } ?? "-",
+                            battery.rate.map(Stats.rateLevel) ?? .normal)
                 }
-                .help(zip(["5m", "15m", "1h"], battery.rates)
-                    .map { span, rate in "\(span) " + (rate.map { ($0 > 0 ? "+" : "") + "\($0)%/h" } ?? "-") }
-                    .joined(separator: "  ·  "))
+                .help("Battery, and its change per hour over the last 15 minutes")
             }
         }
-    }
-
-    /// The SF battery symbol nearest the level, with a bolt on AC power.
-    private static func symbol(_ battery: Stats.Battery) -> String {
-        battery.charging ? "battery.100percent.bolt" : "battery.\((battery.percent + 12) / 25 * 25)percent"
     }
 }
 

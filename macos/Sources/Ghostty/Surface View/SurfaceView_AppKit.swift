@@ -1896,6 +1896,8 @@ extension Ghostty {
             case uuid
             case title
             case isUserSetTitle
+            /// Claylib: the command resuming the Claude session this terminal ran.
+            case claudeResume
         }
 
         required convenience init(from decoder: Decoder) throws {
@@ -1910,6 +1912,7 @@ extension Ghostty {
             let uuid = UUID(uuidString: try container.decode(String.self, forKey: .uuid))
             var config = Ghostty.SurfaceConfiguration()
             config.workingDirectory = try container.decode(String?.self, forKey: .pwd)
+            config.initialInput = try container.decodeIfPresent(String.self, forKey: .claudeResume)
             let savedTitle = try container.decodeIfPresent(String.self, forKey: .title)
             let isUserSetTitle = try container.decodeIfPresent(Bool.self, forKey: .isUserSetTitle) ?? false
 
@@ -1931,6 +1934,10 @@ extension Ghostty {
             try container.encode(id.uuidString, forKey: .uuid)
             try container.encode(title, forKey: .title)
             try container.encode(titleFromTerminal != nil, forKey: .isUserSetTitle)
+            let resume = MainActor.assumeIsolated {
+                surfaceModel?.ttyName.flatMap { ClaudeSessions.shared.byTTY[$0] }?.resume
+            }
+            try container.encodeIfPresent(resume, forKey: .claudeResume)
         }
     }
 }

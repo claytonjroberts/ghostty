@@ -29,13 +29,13 @@ struct Stats: Equatable {
     struct Battery: Equatable {
         let percent: Int
         let charging: Bool
-        /// Change in %/h over 5m, 15m and 1h; nil with under a minute of samples in the span.
-        let rates: [Int?]
+        /// Change in %/h over the last 15 minutes; nil with under a minute of samples.
+        let rate: Int?
     }
 
     static let spark = 30
     static let sparkWindow = 120
-    static let rateSpans = [300, 900, 3600]
+    static let rateSpan = 900
     static let averageSpans = [30, 600, 3600]
 
     let cpu: Int
@@ -77,15 +77,14 @@ struct Stats: Equatable {
 
         let charged = recent.filter { $0.battery != nil }
         if let current = charged.last, let percent = current.battery {
-            let rates: [Int?] = Self.rateSpans.map { span in
-                // Samples run oldest first, so the first one in the span is where it starts.
-                guard let start = charged.first(where: { now - $0.time < span }),
-                      let from = start.battery,
-                      current.time - start.time >= 60 else { return nil }
+            // Samples run oldest first, so the first one in the span is where it starts.
+            let start = charged.first { now - $0.time < Self.rateSpan }
+            let rate: Int? = start.flatMap { start in
+                guard let from = start.battery, current.time - start.time >= 60 else { return nil }
                 let rate = Double(percent - from) * 3600 / Double(current.time - start.time)
                 return Int(rate.rounded(.toNearestOrAwayFromZero))
             }
-            battery = Battery(percent: percent, charging: current.charging, rates: rates)
+            battery = Battery(percent: percent, charging: current.charging, rate: rate)
         } else {
             battery = nil
         }

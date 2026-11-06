@@ -21,11 +21,16 @@ struct ClaudeSession: Equatable {
     let status: Status
     /// The session's name when the user set it; nil when Claude derived it.
     let title: String?
+    /// What `claude --resume` takes.
+    let id: String?
+    let cwd: String?
 
-    init(pid: pid_t, status: Status, title: String?) {
+    init(pid: pid_t, status: Status, title: String?, id: String? = nil, cwd: String? = nil) {
         self.pid = pid
         self.status = status
         self.title = title
+        self.id = id
+        self.cwd = cwd
     }
 
     /// Nil for a file that isn't a session with a status.
@@ -33,7 +38,7 @@ struct ClaudeSession: Equatable {
         guard let file = try? JSONDecoder().decode(File.self, from: json),
               let status = file.status.flatMap(Status.init(rawValue:)) else { return nil }
         let named = file.nameSource != "derived" && !(file.name ?? "").isEmpty
-        self.init(pid: file.pid, status: status, title: named ? file.name : nil)
+        self.init(pid: file.pid, status: status, title: named ? file.name : nil, id: file.sessionId, cwd: file.cwd)
     }
 
     private struct File: Decodable {
@@ -41,6 +46,8 @@ struct ClaudeSession: Equatable {
         let status: String?
         let name: String?
         let nameSource: String?
+        let sessionId: String?
+        let cwd: String?
     }
 }
 
@@ -126,6 +133,14 @@ struct ClaudeAccount: Equatable {
 struct ClaudeTab: Equatable {
     let session: ClaudeSession
     let account: ClaudeAccount?
+    /// The Claude config dir whose registry lists the session: its account.
+    let configDir: String?
+
+    /// What a shell types to resume the session under its account.
+    var resume: String? {
+        guard let id = session.id, let configDir else { return nil }
+        return "env CLAUDE_CONFIG_DIR='\(configDir)' claude --resume \(id)\n"
+    }
 
     /// The session's title when it has one, else `fallback`.
     func name(fallback: String) -> String { session.title ?? fallback }

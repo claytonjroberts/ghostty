@@ -71,12 +71,36 @@ struct ClaylibTabStrip: View {
                 ForEach(Array(group.enumerated()), id: \.offset) { _, tab in
                     TabView(tab: tab, color: color, background: background)
                 }
-                Button { newTab(beside: group[group.count - 1].window) } label: {
+                Button {
+                    let last = group[group.count - 1].window
+                    newTab(from: last, in: (last.windowController as? BaseTerminalController)?.focusedSurface?.pwd, running: "claude\n")
+                } label: {
                     Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                         .frame(width: 20, height: 20).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("New tab in \(group[0].repo.isEmpty ? "this directory" : group[0].repo), running Claude")
+            }
+            Spacer(minLength: 0)
+            if let last = windows.last {
+                let away = sessionsElsewhere
+                if !away.isEmpty {
+                    Button { bringHere(away, beside: last) } label: {
+                        Label("\(away.count)", systemImage: "tray.and.arrow.down")
+                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                            .frame(height: 20).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Bring \(away.count) idle Claude session\(away.count == 1 ? "" : "s") running elsewhere (tmux) into tabs here")
+                }
+                Button {
+                    newTab(from: last, in: FileManager.default.homeDirectoryForCurrentUser.path, running: nil)
+                } label: {
+                    Image(systemName: "house").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        .frame(width: 22, height: 20).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("New tab in your home directory")
             }
         }
         .padding(.horizontal, 8)
@@ -88,11 +112,38 @@ struct ClaylibTabStrip: View {
 
     private var strip: NSColor { NSColor(background).blended(withFraction: 0.07, of: .black) ?? NSColor(background) }
 
-    private func newTab(beside window: NSWindow) {
+    /// Idle Claude sessions in terminals that aren't Ghostty's, such as tmux panes. Busy and
+    /// waiting ones are left until they're idle, as stopping them would lose the turn or choice.
+    private var sessionsElsewhere: [ClaudeTab] {
+        let here = Set(NSApp.windows
+            .compactMap { $0.windowController as? BaseTerminalController }
+            .flatMap { $0.surfaceTree.compactMap { $0.surfaceModel?.ttyName } })
+        return sessions.byTTY
+            .filter { !here.contains($0.key) && $0.value.session.status == .idle && $0.value.resume != nil }
+            .map(\.value)
+            .sorted { ($0.session.cwd ?? "") < ($1.session.cwd ?? "") }
+    }
+
+    /// Stops each session and resumes it in a new tab in its directory, under its account.
+    private func bringHere(_ moving: [ClaudeTab], beside window: NSWindow) {
+        for tab in moving {
+            let pid = tab.session.pid
+            kill(pid, SIGTERM)
+            Task.detached {
+                // Resuming while the old process still writes the transcript would fork it.
+                for _ in 0..<40 where kill(pid, 0) == 0 { try? await Task.sleep(for: .milliseconds(250)) }
+                guard kill(pid, 0) != 0 else { return }
+                await MainActor.run { newTab(from: window, in: tab.session.cwd, running: tab.resume) }
+            }
+        }
+    }
+
+    /// A tab after `window`'s, in `dir`, typing `input` into its shell.
+    private func newTab(from window: NSWindow, in dir: String?, running input: String?) {
         guard let ghostty = (NSApp.delegate as? AppDelegate)?.ghostty else { return }
         var config = Ghostty.SurfaceConfiguration()
-        config.workingDirectory = (window.windowController as? BaseTerminalController)?.focusedSurface?.pwd
-        config.initialInput = "claude\n"
+        config.workingDirectory = dir
+        config.initialInput = input
         _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: config)
     }
 }
