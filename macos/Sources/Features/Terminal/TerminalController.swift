@@ -775,6 +775,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             if let controller = window.windowController as? TerminalController {
                 // We must not register a redo, because it messes with our own redo
                 // that we register later.
+                ClaylibTmux.kill(tabs: [controller])
                 controller.closeTabImmediately(registerRedo: false)
             }
         }
@@ -818,6 +819,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
         for (_, candidate) in tabsToClose {
             if let controller = candidate.windowController as? TerminalController {
+                ClaylibTmux.kill(tabs: [controller])
                 controller.closeTabImmediately(registerRedo: false)
             }
         }
@@ -1323,6 +1325,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
     @IBAction func closeTab(_ sender: Any?) {
         guard let window = window else { return }
+        // Claylib: closing a tab ends its tmux sessions, even when it's the window's last.
+        ClaylibTmux.kill(tabs: [self])
         guard window.tabGroup?.windows.count ?? 0 > 1 else {
             closeWindow(sender)
             return

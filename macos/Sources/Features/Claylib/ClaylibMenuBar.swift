@@ -43,10 +43,10 @@ final class ClaylibMenuBar: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        let missing = OpenSessions.shared.missing.count
+        let missing = OpenSessions.shared.restorable
         if missing > 0 {
             let restore = NSMenuItem(
-                title: "Restore \(missing) Claude Session\(missing == 1 ? "" : "s")", action: #selector(restore), keyEquivalent: "")
+                title: "Restore \(missing) Session\(missing == 1 ? "" : "s")", action: #selector(restore), keyEquivalent: "")
             restore.target = self
             menu.addItem(restore)
             menu.addItem(.separator())

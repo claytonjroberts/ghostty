@@ -9,6 +9,8 @@ final class ClaudeSessions: ObservableObject {
 
     @Published private(set) var byTTY: [String: ClaudeTab] = [:]
     @Published private(set) var accounts = ClaudeAccounts()
+    /// Terminals of the fork's tmux panes, attached to a tab or not: Ghostty's own sessions.
+    private(set) var ghosttyPanes: Set<String> = []
 
     private let home = FileManager.default.homeDirectoryForCurrentUser.path
     private var watcher: FileWatcher?
@@ -31,7 +33,8 @@ final class ClaudeSessions: ObservableObject {
 
     private var accountsFile: String { home + "/.config/claude-accounts.yaml" }
 
-    private func reload() {
+    /// Rereads the registries. Also called when tabs attach to tmux sessions, which changes no file.
+    func reload() {
         var tabs: [String: ClaudeTab] = [:]
         for dir in configDirs {
             let sessions = dir + "/sessions"
@@ -47,6 +50,9 @@ final class ClaudeSessions: ObservableObject {
                     color: Self.transcriptTail(dir: dir, session: session).flatMap(ClaudeTab.agentColor(transcript:)))
             }
         }
+        // A tab's terminal is a tmux client; its Claude runs in the client's pane. Both name it.
+        for (client, pane) in ClaylibTmux.panesByClient() { tabs[client] = tabs[client] ?? tabs[pane] }
+        ghosttyPanes = ClaylibTmux.paneTTYs()
         if tabs != byTTY { byTTY = tabs }
     }
 
@@ -65,19 +71,11 @@ final class ClaudeSessions: ObservableObject {
 
     private func loadAccounts() { accounts = Self.readAccounts(accountsFile, home: home) }
 
-    /// Reads the YAML through `yq`, which claylib already depends on. Never `waitUntilExit`: it
-    /// turns the run loop, and a SwiftUI update in that turn reaching `shared` mid-init traps.
+    /// Reads the YAML through `yq`, which claylib already depends on.
     static func readAccounts(_ file: String, home: String) -> ClaudeAccounts {
         let candidates = ["/opt/homebrew/bin/yq", "/usr/local/bin/yq"]
         guard let yq = candidates.first(where: FileManager.default.isExecutableFile(atPath:)) else { return ClaudeAccounts() }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: yq)
-        process.arguments = ["-o", "json", ".rules", file]
-        let out = Pipe()
-        process.standardOutput = out
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return ClaudeAccounts() }
-        return ClaudeAccounts(rules: out.fileHandleForReading.readDataToEndOfFile(), home: home)
+        return ClaudeAccounts(rules: Data(TabRepo.run(yq, ["-o", "json", ".rules", file]).utf8), home: home)
     }
 
     /// The account a terminal bills to: its Claude session's, else the one its directory routes to.

@@ -32,7 +32,8 @@ final class ClaudeAttention: NSObject {
     }
 
     private func update(_ tabs: [String: ClaudeTab]) {
-        let current = tabs.mapValues(\.session.status)
+        // By process: a session in tmux is listed under its pane's and its tab's terminals.
+        let current = Dictionary(tabs.values.map { ("\($0.session.pid)", $0.session.status) }, uniquingKeysWith: { first, _ in first })
         let waiting = current.values.filter { $0 == .waiting }.count
         NSApp.dockTile.badgeLabel = waiting > 0 ? "\(waiting)" : nil
         if Self.justStopped(from: previous, to: current) && !NSApp.isActive {

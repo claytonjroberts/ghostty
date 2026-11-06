@@ -127,13 +127,19 @@ struct ClaylibTabStrip: View {
 
     private var strip: NSColor { NSColor(background).blended(withFraction: 0.07, of: .black) ?? NSColor(background) }
 
-    /// Idle Claude sessions in terminals that aren't Ghostty's, such as tmux panes. Busy and
-    /// waiting ones are left until they're idle, as stopping them would lose the turn or choice.
+    /// Idle Claude sessions in terminals that aren't Ghostty's, such as the old tmux server's
+    /// panes. Busy and waiting ones are left until they're idle, as stopping them would lose the
+    /// turn or choice. A session also listed under its tab's terminal, or in the fork's own tmux
+    /// (a closed window's, reattached at launch), is Ghostty's already.
     private var sessionsElsewhere: [ClaudeTab] {
-        let here = OpenSessions.ttys
-        return sessions.byTTY
-            .filter { !here.contains($0.key) && $0.value.session.status == .idle && $0.value.open != nil }
-            .map(\.value)
+        let here = OpenSessions.ttys.union(sessions.ghosttyPanes)
+        let ours = Set(sessions.byTTY.filter { here.contains($0.key) }.map(\.value.session.pid))
+        return Dictionary(
+            sessions.byTTY.values
+                .filter { !ours.contains($0.session.pid) && $0.session.status == .idle && $0.open != nil }
+                .map { ($0.session.pid, $0) },
+            uniquingKeysWith: { first, _ in first })
+            .values
             .sorted { ($0.session.cwd ?? "") < ($1.session.cwd ?? "") }
     }
 
