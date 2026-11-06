@@ -42,10 +42,25 @@ final class ClaudeSessions: ObservableObject {
                       let session = ClaudeSession(json: data),
                       let tty = Self.tty(of: session.pid),
                       tabs[tty] == nil else { continue }
-                tabs[tty] = ClaudeTab(session: session, account: accounts.byDir[dir], configDir: dir)
+                tabs[tty] = ClaudeTab(
+                    session: session, account: accounts.byDir[dir], configDir: dir,
+                    color: Self.transcriptTail(dir: dir, session: session).flatMap(ClaudeTab.agentColor(transcript:)))
             }
         }
         if tabs != byTTY { byTTY = tabs }
+    }
+
+    /// The last 512 KB of a session's transcript, `<config dir>/projects/<cwd, non-alphanumerics
+    /// as ->/<id>.jsonl`.
+    /// shortcut: a `/color` further back than that is missed; Claude re-appends it often.
+    private static func transcriptTail(dir: String, session: ClaudeSession) -> Substring? {
+        guard let id = session.id, let cwd = session.cwd else { return nil }
+        let folder = String(cwd.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        guard let file = FileHandle(forReadingAtPath: "\(dir)/projects/\(folder)/\(id).jsonl") else { return nil }
+        defer { try? file.close() }
+        let size = (try? file.seekToEnd()) ?? 0
+        try? file.seek(toOffset: size > 524_288 ? size - 524_288 : 0)
+        return (try? file.readToEnd()).map { Substring(String(decoding: $0, as: UTF8.self)) }
     }
 
     private func loadAccounts() { accounts = Self.readAccounts(accountsFile, home: home) }
