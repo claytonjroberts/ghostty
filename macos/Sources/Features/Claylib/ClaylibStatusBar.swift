@@ -88,7 +88,7 @@ private struct StatsWidgets: View {
         HStack(spacing: 12) {
             HStack(spacing: 4) {
                 Labeled("CPU", "\(stats.cpu)%", Stats.cpuLevel(stats.cpu))
-                Spark(values: stats.cpuSpark, color: color(Stats.cpuLevel(stats.cpu)) ?? .accentColor)
+                Spark(values: stats.cpuSpark, color: color(Stats.cpuLevel(stats.cpu)) ?? .gray)
                     .frame(width: 40, height: 18)
             }
             .help(zip(["30s", "10m", "1h"], stats.cpuAverages)
@@ -97,7 +97,7 @@ private struct StatsWidgets: View {
 
             HStack(spacing: 4) {
                 Labeled("RAM", String(format: "%.1fG", Double(stats.memUsedMB) / 1024), Stats.memLevel(stats.mem))
-                Meter(percent: stats.mem, color: color(Stats.memLevel(stats.mem)) ?? .green)
+                Meter(percent: stats.mem, color: color(Stats.memLevel(stats.mem)) ?? .gray)
             }
             .help(String(format: "%d%% of %d GB used  ·  swap %.1f GB", stats.mem, Self.totalGB, Double(stats.swapMB) / 1024))
 
@@ -131,7 +131,7 @@ private func color(_ level: StatLevel) -> Color? {
     switch level {
     case .normal: nil
     case .good: .green
-    case .warn: .orange
+    case .warn: .yellow
     case .alert: .red
     }
 }

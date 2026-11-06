@@ -48,7 +48,7 @@ struct StatsTests {
 
     @Test func levels() {
         #expect(Stats.cpuLevel(85) == .alert)
-        #expect(Stats.memLevel(79) == .good)
+        #expect(Stats.memLevel(79) == .normal)
         #expect(Stats.memLevel(80) == .warn)
         #expect(Stats.diskLevel(95) == .alert)
         #expect(Stats.rateLevel(3) == .good)
