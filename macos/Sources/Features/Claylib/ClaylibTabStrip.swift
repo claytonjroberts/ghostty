@@ -258,7 +258,7 @@ private struct TabView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            StatusIcon(status: tab.status)
+            StatusIcon(status: tab.status, onFill: tab.active)
             Text(tab.name)
                 .font(.system(size: 12, weight: tab.active ? .semibold : .regular))
                 .foregroundStyle(tab.active ? AnyShapeStyle(Color(readable(on: tab.color ?? .systemGray))) : AnyShapeStyle(.secondary))
@@ -296,6 +296,8 @@ private struct TabView: View {
 /// Claude's state in a tab: waiting on a choice, done and waiting on you, or working.
 private struct StatusIcon: View {
     let status: ClaudeSession.Status?
+    /// On the selected tab's fill, which can match the icon's color.
+    let onFill: Bool
 
     var body: some View {
         switch status {
@@ -307,6 +309,9 @@ private struct StatusIcon: View {
     }
 
     private func icon(_ name: String, _ color: Color, _ help: String) -> some View {
-        Image(systemName: name).font(.system(size: 11)).foregroundStyle(color).help(help)
+        Image(systemName: name).font(.system(size: 11)).foregroundStyle(color)
+            // A white disc behind keeps every status color readable on any repo color.
+            .background(Circle().fill(.white).frame(width: 15, height: 15).opacity(onFill ? 1 : 0))
+            .help(help)
     }
 }
