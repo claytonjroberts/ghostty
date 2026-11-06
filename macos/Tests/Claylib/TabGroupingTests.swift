@@ -41,4 +41,17 @@ struct TabStripTests {
         #expect(readable(on: .white) != readable(on: .black))
         #expect(readable(on: .white) == readable(on: .systemYellow))
     }
+
+    /// Tab changes arrive inside AppKit's layout (a restored tab made key); publishing there
+    /// re-lays out the strip mid-pass, which AppKit throws on. A burst is one later redraw.
+    @Test @MainActor func changesPublishOnceOnTheNextTurn() async {
+        let tabs = ClaylibTabs.shared
+        let before = tabs.revision
+        tabs.changed()
+        tabs.changed()
+        #expect(tabs.revision == before)
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(tabs.revision == before &+ 1)
+    }
 }

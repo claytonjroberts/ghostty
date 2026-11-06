@@ -70,6 +70,15 @@ struct ClaudeSessionTests {
         // The test runner may have no terminal; a dead pid never has one.
         #expect(ClaudeSessions.tty(of: 999_999) == nil)
     }
+
+    /// `shared` reads the accounts while it's being made; a run loop turn there lets a SwiftUI
+    /// update reach `shared` again, which traps.
+    @Test @MainActor func readingAccountsDoesNotRunTheRunLoop() {
+        var ran = false
+        RunLoop.main.perform { ran = true }
+        _ = ClaudeSessions.readAccounts(NSHomeDirectory() + "/.config/claude-accounts.yaml", home: NSHomeDirectory())
+        #expect(!ran)
+    }
 }
 
 struct ClaudeAttentionTests {

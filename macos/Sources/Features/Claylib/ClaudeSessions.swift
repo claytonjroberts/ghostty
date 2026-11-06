@@ -48,20 +48,21 @@ final class ClaudeSessions: ObservableObject {
         if tabs != byTTY { byTTY = tabs }
     }
 
-    /// Reads the YAML through `yq`, which claylib already depends on.
-    private func loadAccounts() {
+    private func loadAccounts() { accounts = Self.readAccounts(accountsFile, home: home) }
+
+    /// Reads the YAML through `yq`, which claylib already depends on. Never `waitUntilExit`: it
+    /// turns the run loop, and a SwiftUI update in that turn reaching `shared` mid-init traps.
+    static func readAccounts(_ file: String, home: String) -> ClaudeAccounts {
         let candidates = ["/opt/homebrew/bin/yq", "/usr/local/bin/yq"]
-        guard let yq = candidates.first(where: FileManager.default.isExecutableFile(atPath:)) else { return }
+        guard let yq = candidates.first(where: FileManager.default.isExecutableFile(atPath:)) else { return ClaudeAccounts() }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: yq)
-        process.arguments = ["-o", "json", ".rules", accountsFile]
+        process.arguments = ["-o", "json", ".rules", file]
         let out = Pipe()
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return }
-        let rules = out.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        accounts = ClaudeAccounts(rules: rules, home: home)
+        guard (try? process.run()) != nil else { return ClaudeAccounts() }
+        return ClaudeAccounts(rules: out.fileHandleForReading.readDataToEndOfFile(), home: home)
     }
 
     /// The account a terminal bills to: its Claude session's, else the one its directory routes to.

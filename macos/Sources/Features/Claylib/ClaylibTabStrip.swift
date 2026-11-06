@@ -6,7 +6,18 @@ import SwiftUI
 final class ClaylibTabs: ObservableObject {
     static let shared = ClaylibTabs()
     @Published private(set) var revision = 0
-    func changed() { revision &+= 1 }
+    private var pending = false
+
+    /// Published on the next run loop turn, once per burst: changes arrive inside AppKit's
+    /// layout (a restored tab made key), and redrawing the strip mid-pass makes AppKit throw.
+    func changed() {
+        guard !pending else { return }
+        pending = true
+        DispatchQueue.main.async {
+            self.pending = false
+            self.revision &+= 1
+        }
+    }
 }
 
 /// One tab as the strip draws it.
@@ -205,6 +216,13 @@ private struct TabView: View {
             UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
                 .fill(tab.active ? background : Color.primary.opacity(hovered ? 0.06 : 0))
                 .shadow(color: .black.opacity(tab.active ? 0.15 : 0), radius: 1.5, y: -0.5))
+        // A tab running Claude is outlined in the color of the account it bills to.
+        .overlay {
+            if tab.status != nil, let account = tab.account?.color {
+                UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
+                    .strokeBorder(Color(account), lineWidth: tab.active ? 1.5 : 1)
+            }
+        }
         .overlay(alignment: .bottom) {
             Rectangle().fill(color).frame(height: tab.active ? 3 : 2).opacity(tab.active ? 1 : 0.7)
         }
