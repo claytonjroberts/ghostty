@@ -28,6 +28,18 @@ struct ClaudeSessionTests {
         #expect(unnamed.title(fallback: "fish") == "fish")
     }
 
+    @Test func lastSlashColorWins() {
+        let transcript = """
+        {"type":"agent-color","agentColor":"blue","sessionId":"s"}
+        {"type":"user","message":"hi"}
+        {"type":"agent-color","agentColor":"red","sessionId":"s"}
+        {"type":"assistant","message":"agentColor"}
+        """
+        #expect(ClaudeTab.agentColor(transcript: Substring(transcript)) == .systemRed)
+        #expect(ClaudeTab.agentColor(transcript: #"{"type":"agent-color","agentColor":"default"}"#) == nil)
+        #expect(ClaudeTab.agentColor(transcript: "") == nil)
+    }
+
     @Test func resumesUnderItsAccount() throws {
         let json = #"{"pid": 9, "status": "idle", "sessionId": "abc", "cwd": "/r"}"#
         let session = try #require(ClaudeSession(json: Data(json.utf8)))

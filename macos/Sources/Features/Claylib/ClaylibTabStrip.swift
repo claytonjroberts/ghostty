@@ -28,6 +28,8 @@ struct StripTab: Equatable {
     let color: NSColor?
     let account: ClaudeAccount?
     let status: ClaudeSession.Status?
+    /// The Claude session's `/color`, outlining the tab.
+    let outline: NSColor?
     let name: String
     let key: String
     let active: Bool
@@ -41,6 +43,7 @@ struct StripTab: Equatable {
         color = terminal?.tabRepo?.color
         account = ClaudeSessions.shared.account(tty: surface?.surfaceModel?.ttyName, dir: surface?.pwd)
         status = terminal?.claudeTab?.session.status
+        outline = terminal?.claudeTab?.color
         name = terminal?.tabName.isEmpty == false ? terminal?.tabName ?? "" : window.title
         key = terminal?.keyEquivalent ?? ""
         active = window.tabGroup?.selectedWindow === window
@@ -197,6 +200,7 @@ private struct TabView: View {
             }
             Text(tab.name)
                 .font(.system(size: 12, weight: tab.active ? .semibold : .regular))
+                .foregroundStyle(tab.active ? .primary : .secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -212,19 +216,23 @@ private struct TabView: View {
         .help([tab.name, tab.key, tab.account?.label].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "  ·  "))
         // Tabs share the strip evenly, as Safari's do, up to a cap.
         .frame(minWidth: 56, maxWidth: 220, minHeight: 26)
+        // The selected tab is raised into the terminal and tinted with its repo's color; the
+        // others sit back, dimmed, on a thin underline.
         .background(
             UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
                 .fill(tab.active ? background : Color.primary.opacity(hovered ? 0.06 : 0))
-                .shadow(color: .black.opacity(tab.active ? 0.15 : 0), radius: 1.5, y: -0.5))
-        // A tab running Claude is outlined in the color of the account it bills to.
+                .overlay(UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
+                    .fill(color.opacity(tab.active ? 0.22 : 0)))
+                .shadow(color: .black.opacity(tab.active ? 0.3 : 0), radius: 2, y: -0.5))
+        // A tab running Claude is outlined in the color its session picked with /color.
         .overlay {
-            if tab.status != nil, let account = tab.account?.color {
+            if let outline = tab.outline {
                 UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
-                    .strokeBorder(Color(account), lineWidth: tab.active ? 1.5 : 1)
+                    .strokeBorder(Color(outline), lineWidth: tab.active ? 2 : 1.5)
             }
         }
         .overlay(alignment: .bottom) {
-            Rectangle().fill(color).frame(height: tab.active ? 3 : 2).opacity(tab.active ? 1 : 0.7)
+            Rectangle().fill(color).frame(height: tab.active ? 3 : 1).opacity(tab.active ? 1 : 0.5)
         }
         .contentShape(Rectangle())
         .onHover { hovered = $0 }

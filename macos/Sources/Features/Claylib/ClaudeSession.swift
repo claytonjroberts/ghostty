@@ -135,6 +135,20 @@ struct ClaudeTab: Equatable {
     let account: ClaudeAccount?
     /// The Claude config dir whose registry lists the session: its account.
     let configDir: String?
+    /// The color picked with `/color`; nil when none was.
+    var color: NSColor?
+
+    /// The last `/color` in a transcript's text: Claude appends `{"type":"agent-color",...}`.
+    static func agentColor(transcript: Substring) -> NSColor? {
+        let record = transcript.split(separator: "\n").last { $0.contains(#""type":"agent-color""#) }
+        struct Record: Decodable { let agentColor: String }
+        guard let record, let name = try? JSONDecoder().decode(Record.self, from: Data(record.utf8)).agentColor
+        else { return nil }
+        return [
+            "red": .systemRed, "orange": .systemOrange, "yellow": .systemYellow, "green": .systemGreen,
+            "cyan": .systemCyan, "blue": .systemBlue, "purple": .systemPurple, "pink": .systemPink,
+        ][name]
+    }
 
     /// What a shell types to resume the session under its account.
     var resume: String? {
