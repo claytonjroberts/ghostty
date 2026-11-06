@@ -42,7 +42,7 @@ final class ClaudeSessions: ObservableObject {
                       let session = ClaudeSession(json: data),
                       let tty = Self.tty(of: session.pid),
                       tabs[tty] == nil else { continue }
-                tabs[tty] = ClaudeTab(session: session, account: accounts.byDir[dir])
+                tabs[tty] = ClaudeTab(session: session, account: accounts.byDir[dir], configDir: dir)
             }
         }
         if tabs != byTTY { byTTY = tabs }

@@ -22,10 +22,19 @@ struct ClaudeSessionTests {
     }
 
     @Test func tabTitleLeadsWithTheMark() {
-        let named = ClaudeTab(session: ClaudeSession(pid: 1, status: .waiting, title: "fix-tabs"), account: nil)
+        let named = ClaudeTab(session: ClaudeSession(pid: 1, status: .waiting, title: "fix-tabs"), account: nil, configDir: nil)
         #expect(named.title(fallback: "fish") == "? fix-tabs")
-        let unnamed = ClaudeTab(session: ClaudeSession(pid: 1, status: .shell, title: nil), account: nil)
+        let unnamed = ClaudeTab(session: ClaudeSession(pid: 1, status: .shell, title: nil), account: nil, configDir: nil)
         #expect(unnamed.title(fallback: "fish") == "fish")
+    }
+
+    @Test func resumesUnderItsAccount() throws {
+        let json = #"{"pid": 9, "status": "idle", "sessionId": "abc", "cwd": "/r"}"#
+        let session = try #require(ClaudeSession(json: Data(json.utf8)))
+        #expect(session.cwd == "/r")
+        let tab = ClaudeTab(session: session, account: nil, configDir: "/h/.claude-accounts/rai")
+        #expect(tab.resume == "env CLAUDE_CONFIG_DIR='/h/.claude-accounts/rai' claude --resume abc\n")
+        #expect(ClaudeTab(session: session, account: nil, configDir: nil).resume == nil)
     }
 
     @Test func accountsByExpandedDirFirstRuleWins() {
