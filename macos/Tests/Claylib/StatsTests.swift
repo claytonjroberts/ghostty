@@ -58,6 +58,14 @@ struct StatsTests {
         #expect(Stats.batteryLevel(.init(percent: 15, charging: true, rate: nil)) == .good)
     }
 
+    @Test func timeUntilFivePercent() {
+        #expect(Stats.Battery(percent: 55, charging: false, rate: -20).untilEmpty == "2h30m")
+        #expect(Stats.Battery(percent: 15, charging: false, rate: -15).untilEmpty == "40m")
+        #expect(Stats.Battery(percent: 4, charging: false, rate: -15).untilEmpty == "0m")
+        #expect(Stats.Battery(percent: 55, charging: true, rate: 10).untilEmpty == nil)
+        #expect(Stats.Battery(percent: 55, charging: false, rate: nil).untilEmpty == nil)
+    }
+
     @Test func rates() {
         #expect(Stats.rate(812) == "812 B/s")
         #expect(Stats.rate(12_400) == "12 KB/s")

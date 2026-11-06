@@ -116,14 +116,14 @@ private struct StatsWidgets: View {
 
             if let battery = stats.battery {
                 HStack(spacing: 6) {
-                    Labeled("BAT", "\(battery.percent)%", Stats.batteryLevel(battery))
+                    Labeled("BAT", battery.untilEmpty ?? "\(battery.percent)%", Stats.batteryLevel(battery))
                     Labeled("%/H", battery.rate.map { ($0 > 0 ? "+" : "") + "\($0)" } ?? "-",
                             battery.rate.map(Stats.rateLevel) ?? .normal)
                     if let rate = battery.rate {
                         Meter(percent: abs(rate) * 100 / Stats.fastestDrain, color: color(Stats.rateLevel(rate)) ?? .gray)
                     }
                 }
-                .help("Battery, and its change per hour over the last 15 minutes")
+                .help("Battery \(battery.percent)%: time left until 5% while draining, and its change per hour over the last 15 minutes")
             }
         }
     }
