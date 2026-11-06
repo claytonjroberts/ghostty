@@ -276,6 +276,8 @@ private struct TabView: View {
             UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
                 .fill(tab.active ? color : Color.primary.opacity(hovered ? 0.06 : 0))
                 .shadow(color: .black.opacity(tab.active ? 0.3 : 0), radius: 2, y: -0.5))
+        // One layer, so the status icon's cutout reaches through the fill.
+        .compositingGroup()
         // A tab running Claude is outlined in the color its session picked with /color.
         .overlay {
             if let outline = tab.outline {
@@ -310,8 +312,8 @@ private struct StatusIcon: View {
 
     private func icon(_ name: String, _ color: Color, _ help: String) -> some View {
         Image(systemName: name).font(.system(size: 11)).foregroundStyle(color)
-            // A white disc behind keeps every status color readable on any repo color.
-            .background(Circle().fill(.white).frame(width: 15, height: 15).opacity(onFill ? 1 : 0))
+            // On the fill it's cut out of it (TabView composites the tab), as the fill can be its color.
+            .blendMode(onFill ? .destinationOut : .normal)
             .help(help)
     }
 }
