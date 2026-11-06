@@ -240,6 +240,8 @@ class AppDelegate: NSObject,
 
         // Claylib: dock badge, bounce and jump for Claude sessions that need you.
         ClaudeAttention.shared.install()
+        // Claylib: the menu bar count and list of terminals.
+        ClaylibMenuBar.shared.install()
 
         // Setup a local event monitor for app-level keyboard shortcuts. See
         // localEventHandler for more info why.
