@@ -46,8 +46,20 @@ struct ClaudeSessionTests {
         #expect(session.cwd == "/r")
         let tab = ClaudeTab(session: session, account: nil, configDir: "/h/.claude-accounts/rai")
         // Claude finds a session by its directory, so the resume goes there whatever the tab's is.
-        #expect(tab.resume == "cd '/r' && env CLAUDE_CONFIG_DIR='/h/.claude-accounts/rai' claude --resume abc\n")
-        #expect(ClaudeTab(session: session, account: nil, configDir: nil).resume == nil)
+        #expect(tab.open?.resume == "cd '/r' && env CLAUDE_CONFIG_DIR='/h/.claude-accounts/rai' claude --resume abc\n")
+        #expect(ClaudeTab(session: session, account: nil, configDir: nil).open == nil)
+    }
+
+    @Test func keptSessions() {
+        let a = OpenSession(id: "a", cwd: "/", configDir: "/c")
+        let b = OpenSession(id: "b", cwd: "/", configDir: "/c")
+        let c = OpenSession(id: "c", cwd: "/", configDir: "/c")
+        // Just launched: nothing seen yet, so every saved session waits to be reopened.
+        #expect(OpenSession.kept(saved: [a, b], live: [], seen: []) == [a, b])
+        // A new session joins the end; saved ones keep their order.
+        #expect(OpenSession.kept(saved: [a, b], live: [c, a], seen: ["a", "c"]) == [a, b, c])
+        // One seen this run and gone now was closed or exited.
+        #expect(OpenSession.kept(saved: [a, b, c], live: [c], seen: ["a", "c"]) == [b, c])
     }
 
     @Test func accountsByExpandedDirFirstRuleWins() {
