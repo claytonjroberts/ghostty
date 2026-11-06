@@ -119,6 +119,9 @@ private struct StatsWidgets: View {
                     Labeled("BAT", "\(battery.percent)%", Stats.batteryLevel(battery))
                     Labeled("%/H", battery.rate.map { ($0 > 0 ? "+" : "") + "\($0)" } ?? "-",
                             battery.rate.map(Stats.rateLevel) ?? .normal)
+                    if let rate = battery.rate {
+                        Meter(percent: abs(rate) * 100 / Stats.fastestDrain, color: color(Stats.rateLevel(rate)) ?? .gray)
+                    }
                 }
                 .help("Battery, and its change per hour over the last 15 minutes")
             }

@@ -104,6 +104,9 @@ struct Stats: Equatable {
         battery.charging ? .good : battery.percent <= 15 ? .alert : battery.percent <= 30 ? .warn : .normal
     }
 
+    /// The fastest a battery can drain, in %/h: a 14" M4 Pro MacBook Pro's 72 Wh at its ~80 W peak.
+    static let fastestDrain = 110
+
     /// Battery rate: green charging, yellow draining 10 %/h or faster, red 20 %/h or faster.
     static func rateLevel(_ rate: Int) -> StatLevel {
         rate > 0 ? .good : rate <= -20 ? .alert : rate <= -10 ? .warn : .normal
