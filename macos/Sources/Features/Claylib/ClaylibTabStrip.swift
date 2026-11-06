@@ -6,7 +6,23 @@ import SwiftUI
 final class ClaylibTabs: ObservableObject {
     static let shared = ClaylibTabs()
     @Published private(set) var revision = 0
+    /// ⌘ held down in Ghostty: tabs show their ⌘-number shortcut.
+    @Published private(set) var commandHeld = false
     private var pending = false
+
+    private init() {
+        _ = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            let held = event.modifierFlags.contains(.command)
+            MainActor.assumeIsolated {
+                if held != ClaylibTabs.shared.commandHeld { ClaylibTabs.shared.commandHeld = held }
+            }
+            return event
+        }
+        // ⌘-Tab away is never seen let go.
+        NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { ClaylibTabs.shared.commandHeld = false }
+        }
+    }
 
     /// Published on the next run loop turn, once per burst: changes arrive inside AppKit's
     /// layout (a restored tab made key), and redrawing the strip mid-pass makes AppKit throw.
@@ -95,7 +111,7 @@ struct ClaylibTabStrip: View {
                             .padding(.leading, index == 0 ? 0 : 6)
                             .padding(.trailing, 4)
                         ForEach(Array(piece.enumerated()), id: \.offset) { _, tab in
-                            TabView(tab: tab, color: color)
+                            TabView(tab: tab, color: color, showKey: tabs.commandHeld)
                                 .onDrag { NSItemProvider(object: Self.payload("tab", [tab.window]) as NSString) }
                                 .modifier(DropTarget { drop($0, onto: [tab.window], group: group, order: windows) })
                         }
@@ -254,6 +270,8 @@ private struct GroupLabel: View {
 private struct TabView: View {
     let tab: StripTab
     let color: Color
+    /// ⌘ is held: show the tab's ⌘-number.
+    let showKey: Bool
     @State private var hovered = false
 
     var body: some View {
@@ -265,6 +283,15 @@ private struct TabView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if showKey, !tab.key.isEmpty {
+                Text(tab.key)
+                    .font(.system(size: 11, weight: .bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(.black.opacity(0.75)))
+                    .fixedSize()
+            }
         }
         .padding(.horizontal, 8)
         .help([tab.name, tab.key, tab.account?.label].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "  ·  "))
