@@ -61,7 +61,7 @@ func runs<T>(_ items: [T], by key: (T) -> String) -> [[T]] {
 /// Claylib: the window's tabs in place of the native tab bar (hidden by TerminalWindow), grouped
 /// Safari style: each repo's label in its color, then its tabs underlined in that color. The
 /// selected tab is filled with that color. A tab shows its Claude status, the account it bills
-/// to and its name, a close button on hover, and its key in its tooltip; a tab running Claude is
+/// to and its name, and its key in its tooltip; a tab running Claude is
 /// outlined in its /color. The + after a group
 /// opens a tab beside it, in its directory, running Claude.
 struct ClaylibTabStrip: View {
@@ -207,13 +207,6 @@ private struct TabView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if hovered {
-                Button { tab.window.performClose(nil) } label: {
-                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(.horizontal, 8)
         .help([tab.name, tab.key, tab.account?.label].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "  ·  "))
