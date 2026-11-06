@@ -15,6 +15,20 @@ struct TabGroupingTests {
         #expect(TabGrouping.anchor(repos: ["b", "a", "b", "b"], moving: 0) == 3)
     }
 
+    @Test func dropsLandOnTheSideTheyCameFrom() {
+        let order = [1, 2, 3, 4, 5]
+        // From the right: before the target. From the left: after it.
+        #expect(TabGrouping.drop(order: order, moving: [4], onto: [2])! == (2, true))
+        #expect(TabGrouping.drop(order: order, moving: [1], onto: [3])! == (3, false))
+        // A group lands before or after the whole target group.
+        #expect(TabGrouping.drop(order: order, moving: [4, 5], onto: [1, 2])! == (1, true))
+        #expect(TabGrouping.drop(order: order, moving: [1, 2], onto: [3, 4])! == (4, false))
+        // Onto itself: nowhere to go.
+        #expect(TabGrouping.drop(order: order, moving: [3], onto: [3]) == nil)
+        // A tab dropped on its own group's label goes to the group's front.
+        #expect(TabGrouping.drop(order: order, moving: [3], onto: [2, 3])! == (2, true))
+    }
+
     @Test func unknownRepoStaysPut() {
         #expect(TabGrouping.anchor(repos: ["a", nil, "a"], moving: 1) == nil)
     }
