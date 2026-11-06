@@ -7,6 +7,7 @@ struct ClaylibStatusBar: View {
     /// The focused terminal's tty and directory, for its Claude account and PR.
     let tty: String?
     let dir: String?
+    let colors: StatColors
 
     @ObservedObject private var sessions = ClaudeSessions.shared
     @ObservedObject private var model = SystemStatsModel.shared
@@ -25,7 +26,7 @@ struct ClaylibStatusBar: View {
             }
             Spacer(minLength: 0)
             if let stats = model.stats {
-                StatsWidgets(stats: stats).fixedSize()
+                StatsWidgets(stats: stats, colors: colors).fixedSize()
             }
             CaffeineButton()
         }
@@ -81,14 +82,15 @@ private struct PRBox: View {
 /// meter, as the Stats app draws its menu bar widgets. Details are in each one's tooltip.
 private struct StatsWidgets: View {
     let stats: Stats
+    let colors: StatColors
 
     private static let totalGB = Int(ProcessInfo.processInfo.physicalMemory >> 30)
 
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 4) {
-                Labeled("CPU", "\(stats.cpu)%", Stats.cpuLevel(stats.cpu))
-                Spark(values: stats.cpuSpark, color: color(Stats.cpuLevel(stats.cpu)) ?? .gray)
+                Labeled(colors, "CPU", "\(stats.cpu)%", Stats.cpuLevel(stats.cpu))
+                Spark(values: stats.cpuSpark, color: colors(Stats.cpuLevel(stats.cpu)) ?? .gray)
                     .frame(width: 40, height: 18)
             }
             .help(zip(["30s", "10m", "1h"], stats.cpuAverages)
@@ -96,14 +98,14 @@ private struct StatsWidgets: View {
                 .joined(separator: "  ·  "))
 
             HStack(spacing: 4) {
-                Labeled("RAM", String(format: "%.1fG", Double(stats.memUsedMB) / 1024), Stats.memLevel(stats.mem))
-                Meter(percent: stats.mem, color: color(Stats.memLevel(stats.mem)) ?? .gray)
+                Labeled(colors, "RAM", String(format: "%.1fG", Double(stats.memUsedMB) / 1024), Stats.memLevel(stats.mem))
+                Meter(percent: stats.mem, color: colors(Stats.memLevel(stats.mem)) ?? .gray)
             }
             .help(String(format: "%d%% of %d GB used  ·  swap %.1f GB", stats.mem, Self.totalGB, Double(stats.swapMB) / 1024))
 
             HStack(spacing: 4) {
-                Labeled("SSD", "\(stats.disk)%", Stats.diskLevel(stats.disk))
-                Meter(percent: stats.disk, color: color(Stats.diskLevel(stats.disk)) ?? .green)
+                Labeled(colors, "SSD", "\(stats.disk)%", Stats.diskLevel(stats.disk))
+                Meter(percent: stats.disk, color: colors(Stats.diskLevel(stats.disk)) ?? .green)
             }
             .help("\(stats.diskFreeGB) GB free")
 
@@ -116,11 +118,11 @@ private struct StatsWidgets: View {
 
             if let battery = stats.battery {
                 HStack(spacing: 6) {
-                    Labeled("BAT", battery.untilEmpty ?? "\(battery.percent)%", Stats.batteryLevel(battery))
-                    Labeled("%/H", battery.rate.map { ($0 > 0 ? "+" : "") + "\($0)" } ?? "-",
+                    Labeled(colors, "BAT", battery.untilEmpty ?? "\(battery.percent)%", Stats.batteryLevel(battery))
+                    Labeled(colors, "%/H", battery.rate.map { ($0 > 0 ? "+" : "") + "\($0)" } ?? "-",
                             battery.rate.map(Stats.rateLevel) ?? .normal)
                     if let rate = battery.rate {
-                        Meter(percent: abs(rate) * 100 / Stats.fastestDrain, color: color(Stats.rateLevel(rate)) ?? .gray)
+                        Meter(percent: abs(rate) * 100 / Stats.fastestDrain, color: colors(Stats.rateLevel(rate)) ?? .gray)
                     }
                 }
                 .help("Battery \(battery.percent)%: time left until 5% while draining, and its change per hour over the last 15 minutes")
@@ -129,23 +131,35 @@ private struct StatsWidgets: View {
     }
 }
 
-/// Plain is nil: the caller's default.
-private func color(_ level: StatLevel) -> Color? {
-    switch level {
-    case .normal: nil
-    case .good: .green
-    case .warn: .yellow
-    case .alert: .red
+/// The terminal theme's red, yellow and green, so stats read like the terminal's own text.
+struct StatColors {
+    private var red = Color.red, yellow = Color.yellow, green = Color.green
+
+    init(palette: [Color]) {
+        guard palette.count > 3 else { return }
+        (red, green, yellow) = (palette[1], palette[2], palette[3])
+    }
+
+    /// Plain is nil: the caller's default.
+    func callAsFunction(_ level: StatLevel) -> Color? {
+        switch level {
+        case .normal: nil
+        case .good: green
+        case .warn: yellow
+        case .alert: red
+        }
     }
 }
 
 /// A small caps label over its value, as the Stats app stacks them.
 private struct Labeled: View {
+    let colors: StatColors
     let label: String
     let value: String
     let level: StatLevel
 
-    init(_ label: String, _ value: String, _ level: StatLevel) {
+    init(_ colors: StatColors, _ label: String, _ value: String, _ level: StatLevel) {
+        self.colors = colors
         self.label = label
         self.value = value
         self.level = level
@@ -156,7 +170,7 @@ private struct Labeled: View {
             Text(label).font(.system(size: 7, weight: .semibold)).foregroundColor(.secondary)
             // A green "good" is for meters; the number stays plain.
             Text(value).font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundColor(level == .good ? nil : color(level))
+                .foregroundColor(level == .good ? nil : colors(level))
         }
         .frame(minWidth: 30, alignment: .leading)
     }
