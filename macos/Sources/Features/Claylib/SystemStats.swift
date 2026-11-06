@@ -31,6 +31,13 @@ struct Stats: Equatable {
         let charging: Bool
         /// Change in %/h over the last 15 minutes; nil with under a minute of samples.
         let rate: Int?
+
+        /// Time left until 5% at the current drain, as "1h35m" or "40m"; nil unless draining.
+        var untilEmpty: String? {
+            guard let rate, rate < 0 else { return nil }
+            let minutes = max(percent - 5, 0) * 60 / -rate
+            return minutes >= 60 ? "\(minutes / 60)h\(String(format: "%02d", minutes % 60))m" : "\(minutes)m"
+        }
     }
 
     static let spark = 30
