@@ -460,6 +460,16 @@ extension Ghostty {
             return v
         }
 
+        /// The 256-color palette, theme applied; empty without a config.
+        var palette: [Color] {
+            var v = ghostty_config_palette_s()
+            let key = "palette"
+            guard let config = self.config,
+                  ghostty_config_get(config, &v, key, UInt(key.lengthOfBytes(using: .utf8))) else { return [] }
+            return withUnsafeBytes(of: v.colors) { Array($0.bindMemory(to: ghostty_config_color_s.self)) }
+                .map { Color(nsColor: NSColor(ghostty: $0)) }
+        }
+
         var backgroundColor: Color {
             var color: ghostty_config_color_s = .init()
             let bg_key = "background"

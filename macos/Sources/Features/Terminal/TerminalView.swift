@@ -112,7 +112,8 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     // Claylib: the Claude account, branch PR, machine stats and keep-awake under the terminals.
                     ClaylibStatusBar(
                         tty: lastFocusedSurface?.value?.surfaceModel?.ttyName,
-                        dir: lastFocusedSurface?.value?.pwd)
+                        dir: lastFocusedSurface?.value?.pwd,
+                        colors: StatColors(palette: ghostty.config.palette))
                 }
                 // Ignore safe area to extend up in to the titlebar region if we have the "hidden" titlebar style
                 .ignoresSafeArea(.container, edges: ghostty.config.macosTitlebarStyle == .hidden ? .top : [])
