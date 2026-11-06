@@ -35,7 +35,9 @@ struct TabRepo: Equatable {
         return repo
     }
 
-    /// Stdout of a program, "" when it can't start. Blocks, so call it off the main thread.
+    /// Stdout of a program, "" when it can't start. Blocks until the program closes its output.
+    /// Never `waitUntilExit`: it turns the run loop, and on the main thread a SwiftUI update in
+    /// that turn can reach a singleton mid-init, which traps.
     static func run(_ path: String, _ args: [String], in dir: String? = nil) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
@@ -45,9 +47,7 @@ struct TabRepo: Equatable {
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return "" }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return String(bytes: data, encoding: .utf8) ?? ""
+        return String(bytes: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
     }
 }
 

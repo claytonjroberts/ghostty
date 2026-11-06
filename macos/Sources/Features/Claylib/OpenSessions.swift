@@ -67,17 +67,38 @@ final class OpenSessions {
         return saved.filter { !live.contains($0.id) && (reopened[$0.id].map { -$0.timeIntervalSinceNow > 60 } ?? true) }
     }
 
-    /// Opens a tab resuming each missing session, after the frontmost terminal's tabs.
+    /// What Restore would bring back: detached tmux sessions and missing Claude sessions.
+    var restorable: Int { ClaylibTmux.detached().count + missing.count }
+
+    /// Reattaches a tab to each detached tmux session, then opens one resuming each Claude session
+    /// not running anywhere (its tmux server ended, as on a reboot), after the frontmost terminal's
+    /// tabs. Opens a window when none is left, as Ghostty opens none itself at launch.
     func reopen() {
         guard let ghostty = (NSApp.delegate as? AppDelegate)?.ghostty else { return }
         var parent = NSApp.orderedWindows.first { $0 is TerminalWindow }
+        @discardableResult
+        func open(_ config: Ghostty.SurfaceConfiguration) -> TerminalController? {
+            let controller = TerminalController.newTab(ghostty, from: parent, withBaseConfig: config)
+            parent = controller?.window ?? parent
+            return controller
+        }
+        for session in ClaylibTmux.detached() {
+            var config = Ghostty.SurfaceConfiguration()
+            config.workingDirectory = session.dir
+            config.command = ClaylibTmux.attach(session.name)
+            // Its shell reports a directory only on cd; the tab needs it now, for its repo.
+            open(config)?.surfaceTree.forEach { $0.pwd = session.dir }
+        }
         for session in missing {
             var config = Ghostty.SurfaceConfiguration()
             config.workingDirectory = session.cwd
             config.initialInput = session.resume
             reopened[session.id] = Date()
-            parent = TerminalController.newTab(ghostty, from: parent, withBaseConfig: config)?.window ?? parent
+            open(config)
         }
+        if parent == nil { open(Ghostty.SurfaceConfiguration()) }
+        // Attaching changes no registry file, so the tabs learn their Claude sessions from this.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { ClaudeSessions.shared.reload() }
     }
 
     private func update(_ byTTY: [String: ClaudeTab]) {
