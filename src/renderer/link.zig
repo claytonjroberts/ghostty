@@ -31,8 +31,8 @@ pub const Link = struct {
         return switch (self.highlight) {
             .always => true,
             .always_mods => |v| mouse_mods.equal(v),
-            .hover => mouse_viewport != null,
-            .hover_mods => |v| mouse_viewport != null and mouse_mods.equal(v),
+            // Claylib: hovering highlights whatever the mods; they gate only the click.
+            .hover, .hover_mods => mouse_viewport != null,
         };
     }
 };
@@ -388,4 +388,35 @@ test "renderCellMap mods no match" {
     try testing.expect(!result.contains(.{ .x = 3, .y = 0 }));
     try testing.expect(!result.contains(.{ .x = 1, .y = 1 }));
     try testing.expect(!result.contains(.{ .x = 1, .y = 2 }));
+}
+
+test "renderCellMap hover_mods highlights without the mods" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var t: terminal.Terminal = try .init(testing.io, alloc, .{
+        .cols = 5,
+        .rows = 3,
+    });
+    defer t.deinit(alloc);
+
+    var s = t.vtStream();
+    defer s.deinit();
+    s.nextSlice("1ABCD");
+
+    var state: terminal.RenderState = .empty;
+    defer state.deinit(alloc);
+    try state.update(alloc, &t);
+
+    var set = try Set.fromConfig(alloc, &.{.{
+        .regex = "AB",
+        .action = .{ .open = {} },
+        .highlight = .{ .hover_mods = .{ .super = true } },
+    }});
+    defer set.deinit(alloc);
+
+    var result: terminal.RenderState.CellSet = .empty;
+    defer result.deinit(alloc);
+    try set.renderCellMap(alloc, &result, &state, .{ .x = 1, .y = 0 }, .{});
+    try testing.expect(result.contains(.{ .x = 1, .y = 0 }));
 }

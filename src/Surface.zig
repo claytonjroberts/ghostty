@@ -1681,7 +1681,7 @@ fn mouseRefreshLinks(
             }
         }
 
-        const link = (try self.linkAtPos(pos)) orelse break :link .{ null, false };
+        const link = (try self.linkAtPos(pos, true)) orelse break :link .{ null, false };
         switch (link.action) {
             .open => {
                 const str = try self.io.terminal.screens.active.selectionString(alloc, .{
@@ -1718,7 +1718,8 @@ fn mouseRefreshLinks(
         _ = try self.rt_app.performAction(
             .{ .surface = self },
             .mouse_shape,
-            .pointer,
+            // Claylib: any hover underlines a link; the hand shows only once ⌘ makes it clickable.
+            if (self.mouseModsWithCapture(self.mouse.mods).equal(input.ctrlOrSuper(.{}))) .pointer else self.io.terminal.mouse_shape,
         );
 
         if (preview) {
@@ -4231,7 +4232,7 @@ pub fn mouseButtonCallback(
 
                 // If there is a link at this position, we want to
                 // select the link. Otherwise, select the word.
-                if (try self.linkAtPos(pos)) |link| {
+                if (try self.linkAtPos(pos, false)) |link| {
                     try self.setSelectionAndCopy(link.selection);
                 } else {
                     const sel = screen.selectWord(
@@ -4441,11 +4442,13 @@ const Link = struct {
 };
 
 /// Returns the link at the given cursor position, if any.
+/// With `any_mods`, whatever modifiers are held, for highlighting on hover.
 ///
 /// Requires the renderer mutex is held.
 fn linkAtPos(
     self: *Surface,
     pos: apprt.CursorPos,
+    any_mods: bool,
 ) !?Link {
     // Convert our cursor position to a screen point.
     const screen: *terminal.Screen = self.renderer_state.terminal.screens.active;
@@ -4463,7 +4466,7 @@ fn linkAtPos(
 
     // If we have the proper modifiers set then we can check for OSC8 links.
     if (self.config.link_osc8 and
-        mouse_mods.equal(input.ctrlOrSuper(.{})))
+        (any_mods or mouse_mods.equal(input.ctrlOrSuper(.{}))))
     hyperlink: {
         const rac = mouse_pin.rowAndCell();
         const cell = rac.cell;
@@ -4473,7 +4476,7 @@ fn linkAtPos(
     }
 
     // Fall back to configured links
-    return try self.linkAtPin(mouse_pin, mouse_mods);
+    return try self.linkAtPin(mouse_pin, if (any_mods) null else mouse_mods);
 }
 
 /// Detects if a link is present at the given pin.
@@ -4551,7 +4554,7 @@ fn mouseModsWithCapture(self: *Surface, mods: input.Mods) input.Mods {
 ///
 /// Requires the renderer state mutex is held.
 fn processLinks(self: *Surface, pos: apprt.CursorPos) !bool {
-    const link = try self.linkAtPos(pos) orelse return false;
+    const link = try self.linkAtPos(pos, false) orelse return false;
     switch (link.action) {
         .open => {
             const str = try self.io.terminal.screens.active.selectionString(self.alloc, .{
@@ -5193,7 +5196,7 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
 
             self.renderer_state.mutex.lockUncancelable(global.io());
             defer self.renderer_state.mutex.unlock(global.io());
-            if (try self.linkAtPos(pos)) |link_info| {
+            if (try self.linkAtPos(pos, false)) |link_info| {
                 const url_text = switch (link_info.action) {
                     .open => url_text: {
                         // For regex links, get the text from selection
