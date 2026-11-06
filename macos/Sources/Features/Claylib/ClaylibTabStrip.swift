@@ -60,8 +60,9 @@ func runs<T>(_ items: [T], by key: (T) -> String) -> [[T]] {
 
 /// Claylib: the window's tabs in place of the native tab bar (hidden by TerminalWindow), grouped
 /// Safari style: each repo's label in its color, then its tabs underlined in that color. The
-/// selected tab is raised into the terminal's background. A tab shows its Claude status, the
-/// account it bills to and its name, a close button on hover, and its key in its tooltip. The + after a group
+/// selected tab is filled with that color. A tab shows its Claude status, the account it bills
+/// to and its name, a close button on hover, and its key in its tooltip; a tab running Claude is
+/// outlined in its /color. The + after a group
 /// opens a tab beside it, in its directory, running Claude.
 struct ClaylibTabStrip: View {
     /// Any terminal in the window; its window is read on every redraw, as tabs move between windows.
@@ -83,7 +84,7 @@ struct ClaylibTabStrip: View {
                     .padding(.leading, index == 0 ? 0 : 6)
                     .padding(.trailing, 4)
                 ForEach(Array(group.enumerated()), id: \.offset) { _, tab in
-                    TabView(tab: tab, color: color, background: background)
+                    TabView(tab: tab, color: color)
                 }
                 Button {
                     let last = group[group.count - 1].window
@@ -189,18 +190,20 @@ private struct GroupLabel: View {
 private struct TabView: View {
     let tab: StripTab
     let color: Color
-    let background: Color
     @State private var hovered = false
 
     var body: some View {
         HStack(spacing: 6) {
             StatusIcon(status: tab.status)
             if let account = tab.account?.color {
-                Circle().fill(Color(account)).frame(width: 7, height: 7).help(tab.account?.label ?? "")
+                // Ringed on the filled tab, where it may match the fill.
+                Circle().fill(Color(account)).frame(width: 7, height: 7)
+                    .overlay(Circle().stroke(Color.white.opacity(tab.active ? 0.9 : 0), lineWidth: 1))
+                    .help(tab.account?.label ?? "")
             }
             Text(tab.name)
                 .font(.system(size: 12, weight: tab.active ? .semibold : .regular))
-                .foregroundStyle(tab.active ? .primary : .secondary)
+                .foregroundStyle(tab.active ? AnyShapeStyle(Color(readable(on: tab.color ?? .systemGray))) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -216,13 +219,11 @@ private struct TabView: View {
         .help([tab.name, tab.key, tab.account?.label].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "  ·  "))
         // Tabs share the strip evenly, as Safari's do, up to a cap.
         .frame(minWidth: 56, maxWidth: 220, minHeight: 26)
-        // The selected tab is raised into the terminal and tinted with its repo's color; the
-        // others sit back, dimmed, on a thin underline.
+        // The selected tab is filled with its repo's color; the others sit back, dimmed, on a
+        // thin underline.
         .background(
             UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
-                .fill(tab.active ? background : Color.primary.opacity(hovered ? 0.06 : 0))
-                .overlay(UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
-                    .fill(color.opacity(tab.active ? 0.22 : 0)))
+                .fill(tab.active ? color : Color.primary.opacity(hovered ? 0.06 : 0))
                 .shadow(color: .black.opacity(tab.active ? 0.3 : 0), radius: 2, y: -0.5))
         // A tab running Claude is outlined in the color its session picked with /color.
         .overlay {
