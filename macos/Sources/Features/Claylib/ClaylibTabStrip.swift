@@ -330,7 +330,7 @@ private struct StatusIcon: View {
         switch status {
         case .waiting: icon("questionmark.circle.fill", .orange, "Waiting on your choice")
         case .idle: icon("checkmark.circle.fill", .green, "Done, your turn")
-        case .busy: icon("arrow.triangle.2.circlepath", .blue, "Working")
+        case .busy: icon("arrow.triangle.2.circlepath.circle.fill", .blue, "Working")
         case .shell, nil: EmptyView()
         }
     }
