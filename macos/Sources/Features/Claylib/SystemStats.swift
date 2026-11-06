@@ -94,7 +94,7 @@ struct Stats: Equatable {
     static func cpuLevel(_ value: Int) -> StatLevel { value >= 85 ? .alert : value >= 60 ? .warn : .normal }
 
     /// Memory: macOS idles near 75%, so yellow from 80%, red from 90%; the meter is green below.
-    static func memLevel(_ value: Int) -> StatLevel { value >= 90 ? .alert : value >= 80 ? .warn : .good }
+    static func memLevel(_ value: Int) -> StatLevel { value >= 90 ? .alert : value >= 80 ? .warn : .normal }
 
     /// Disk: yellow from 85% full, red from 95%.
     static func diskLevel(_ value: Int) -> StatLevel { value >= 95 ? .alert : value >= 85 ? .warn : .good }
