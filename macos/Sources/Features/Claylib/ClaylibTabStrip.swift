@@ -62,8 +62,9 @@ func runs<T>(_ items: [T], by key: (T) -> String) -> [[T]] {
 /// Safari style: each repo's label in its color, then its tabs underlined in that color. The
 /// selected tab is filled with that color. A tab shows its Claude status and its name, with its
 /// key and billing account in its tooltip; a tab running Claude is
-/// outlined in its /color. The + after a group
-/// opens a tab beside it, in its directory, running Claude.
+/// outlined in its /color. The + after a group opens a tab beside it, in its directory, running
+/// Claude. Tabs wrap onto another row past `perRow`. Dragging a tab reorders it within its group;
+/// dragging a group's label moves the whole group.
 struct ClaylibTabStrip: View {
     /// Any terminal in the window; its window is read on every redraw, as tabs move between windows.
     let surface: Ghostty.SurfaceView?
@@ -72,57 +73,94 @@ struct ClaylibTabStrip: View {
     @ObservedObject private var tabs = ClaylibTabs.shared
     @ObservedObject private var sessions = ClaudeSessions.shared
 
+    /// Tabs on one line of the strip; past that they wrap onto another.
+    static let perRow = 6
+
     var body: some View {
         let windows = surface?.window.map { $0.tabGroup?.windows ?? [$0] } ?? []
-        let groups = runs(windows.map(StripTab.init(window:)), by: \.repo)
-        // shortcut: past what fits, tabs shrink and their names truncate; no overflow scrolling yet.
-        // Tabs are direct children of one stack, so they share its width evenly.
-        HStack(spacing: 1) {
-            ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
-                let color = Color(group[0].color ?? .systemGray)
-                GroupLabel(repo: group[0].repo, color: group[0].color ?? .systemGray)
-                    .padding(.leading, index == 0 ? 0 : 6)
-                    .padding(.trailing, 4)
-                ForEach(Array(group.enumerated()), id: \.offset) { _, tab in
-                    TabView(tab: tab, color: color)
-                }
-                Button {
-                    let last = group[group.count - 1].window
-                    newTab(from: last, in: (last.windowController as? BaseTerminalController)?.focusedSurface?.pwd, running: "claude\n")
-                } label: {
-                    Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("New tab in \(group[0].repo.isEmpty ? "this directory" : group[0].repo), running Claude")
-            }
-            Spacer(minLength: 0)
-            if let last = windows.last {
-                let away = sessionsElsewhere
-                if !away.isEmpty {
-                    Button { bringHere(away, beside: last) } label: {
-                        Label("\(away.count)", systemImage: "tray.and.arrow.down")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                            .frame(height: 20).contentShape(Rectangle())
+        let all = windows.map(StripTab.init(window:))
+        let groups = runs(all, by: \.repo).map { $0.map(\.window) }
+        let rows = stride(from: 0, to: all.count, by: Self.perRow).map { Array(all[$0..<min($0 + Self.perRow, all.count)]) }
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(rows.indices, id: \.self) { row in
+                // Tabs are direct children of one stack, so they share its width evenly. A group
+                // that wraps shows its label again on the next row.
+                HStack(spacing: 1) {
+                    ForEach(Array(runs(rows[row], by: \.repo).enumerated()), id: \.offset) { index, piece in
+                        let group = groups.first { $0.contains(piece[0].window) } ?? piece.map(\.window)
+                        let color = Color(piece[0].color ?? .systemGray)
+                        GroupLabel(repo: piece[0].repo, color: piece[0].color ?? .systemGray)
+                            .onDrag { NSItemProvider(object: Self.payload("group", group) as NSString) }
+                            .modifier(DropTarget { drop($0, onto: group, group: group, order: windows) })
+                            .padding(.leading, index == 0 ? 0 : 6)
+                            .padding(.trailing, 4)
+                        ForEach(Array(piece.enumerated()), id: \.offset) { _, tab in
+                            TabView(tab: tab, color: color)
+                                .onDrag { NSItemProvider(object: Self.payload("tab", [tab.window]) as NSString) }
+                                .modifier(DropTarget { drop($0, onto: [tab.window], group: group, order: windows) })
+                        }
+                        Button {
+                            let last = piece[piece.count - 1].window
+                            newTab(from: last, in: (last.windowController as? BaseTerminalController)?.focusedSurface?.pwd, running: "claude\n")
+                        } label: {
+                            Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                                .frame(width: 20, height: 20).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("New tab in \(piece[0].repo.isEmpty ? "this directory" : piece[0].repo), running Claude")
                     }
-                    .buttonStyle(.plain)
-                    .help("Bring \(away.count) idle Claude session\(away.count == 1 ? "" : "s") running elsewhere (tmux) into tabs here")
+                    Spacer(minLength: 0)
+                    if row == 0 { trailingButtons(windows) }
                 }
-                Button {
-                    newTab(from: last, in: FileManager.default.homeDirectoryForCurrentUser.path, running: nil)
-                } label: {
-                    Image(systemName: "house").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        .frame(width: 22, height: 20).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("New tab in your home directory")
             }
+            if rows.isEmpty { HStack { Spacer(minLength: 0); trailingButtons(windows) } }
         }
         .padding(.horizontal, 8)
         .padding(.top, 4)
         .frame(maxWidth: .infinity, minHeight: 32, alignment: .bottomLeading)
         .background(Color(strip))
         .id(tabs.revision)
+    }
+
+    /// What a drag carries: `tab:` or `group:` and the window numbers of the tabs it moves.
+    private static func payload(_ kind: String, _ windows: [NSWindow]) -> String {
+        kind + ":" + windows.map { String($0.windowNumber) }.joined(separator: ",")
+    }
+
+    /// Moves the dragged tabs next to `target`. A group moves next to the target's whole group; a
+    /// tab moves only within its own, as a tab's repo decides its group.
+    private func drop(_ payload: String, onto target: [NSWindow], group: [NSWindow], order: [NSWindow]) {
+        let parts = payload.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return }
+        let moving = parts[1].split(separator: ",").compactMap { Int($0).flatMap(NSApp.window(withWindowNumber:)) }
+        let onto = parts[0] == "group" ? group : target
+        guard parts[0] == "group" || moving.allSatisfy(group.contains),
+              let (anchor, before) = TabGrouping.drop(order: order, moving: moving, onto: onto) else { return }
+        TabGrouping.move(moving, beside: anchor, before: before)
+    }
+
+    @ViewBuilder
+    private func trailingButtons(_ windows: [NSWindow]) -> some View {
+        if let last = windows.last {
+            let away = sessionsElsewhere
+            if !away.isEmpty {
+                Button { bringHere(away, beside: last) } label: {
+                    Label("\(away.count)", systemImage: "tray.and.arrow.down")
+                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        .frame(height: 20).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Bring \(away.count) idle Claude session\(away.count == 1 ? "" : "s") running elsewhere (tmux) into tabs here")
+            }
+            Button {
+                newTab(from: last, in: FileManager.default.homeDirectoryForCurrentUser.path, running: nil)
+            } label: {
+                Image(systemName: "house").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                    .frame(width: 22, height: 20).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("New tab in your home directory")
+        }
     }
 
     private var strip: NSColor { NSColor(background).blended(withFraction: 0.07, of: .black) ?? NSColor(background) }
@@ -164,6 +202,28 @@ struct ClaylibTabStrip: View {
         config.workingDirectory = dir
         config.initialInput = input
         _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: config)
+    }
+}
+
+/// Takes a dragged tab or group's payload, outlining the view while one hovers over it.
+private struct DropTarget: ViewModifier {
+    let perform: (String) -> Void
+    @State private var targeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                RoundedRectangle(cornerRadius: 6).strokeBorder(Color.accentColor, lineWidth: 2).opacity(targeted ? 1 : 0)
+            }
+            .onDrop(of: [.text], isTargeted: $targeted) { providers in
+                guard let provider = providers.first else { return false }
+                _ = provider.loadObject(ofClass: NSString.self) { item, _ in
+                    guard let text = item as? NSString else { return }
+                    let payload = text as String
+                    DispatchQueue.main.async { perform(payload) }
+                }
+                return true
+            }
     }
 }
 

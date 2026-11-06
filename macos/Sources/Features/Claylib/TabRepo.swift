@@ -70,12 +70,40 @@ enum TabGrouping {
         guard let moving = windows.firstIndex(of: window),
               let anchor = anchor(repos: windows.map { ($0 as? TerminalWindow)?.tabRepo?.name }, moving: moving)
         else { return }
-        let wasKey = window.isKeyWindow
+        move([window], beside: windows[anchor], before: false)
+    }
+
+    /// Where tabs dragged onto others land: before the target when they come from its right,
+    /// after it when they come from its left. Nil when there's nowhere to go (dropped on themselves).
+    static func drop<T: Equatable>(order: [T], moving: [T], onto target: [T]) -> (anchor: T, before: Bool)? {
+        let target = target.filter { !moving.contains($0) }
+        guard let first = target.first, let last = target.last,
+              let from = moving.first.flatMap(order.firstIndex(of:)),
+              let to = order.firstIndex(of: first) else { return nil }
+        return from > to ? (first, true) : (last, false)
+    }
+
+    /// Moves tabs, keeping their order, next to `anchor` in its window's tab group; the selected
+    /// tab stays selected.
+    @MainActor
+    static func move(_ moving: [NSWindow], beside anchor: NSWindow, before: Bool) {
+        guard let group = anchor.tabGroup else { return }
+        let selected = group.selectedWindow
         NSAnimationContext.beginGrouping()
         NSAnimationContext.current.duration = 0
-        group.removeWindow(window)
-        windows[anchor].addTabbedWindowSafely(window, ordered: .above)
-        if wasKey { window.makeKey() }
+        var previous: NSWindow?
+        for window in moving {
+            group.removeWindow(window)
+            if let previous {
+                previous.addTabbedWindowSafely(window, ordered: .above)
+            } else {
+                anchor.addTabbedWindowSafely(window, ordered: before ? .below : .above)
+            }
+            previous = window
+        }
+        group.selectedWindow = selected
+        selected?.makeKey()
         NSAnimationContext.endGrouping()
+        ClaylibTabs.shared.changed()
     }
 }
