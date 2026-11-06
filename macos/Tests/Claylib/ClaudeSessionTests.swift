@@ -45,7 +45,8 @@ struct ClaudeSessionTests {
         let session = try #require(ClaudeSession(json: Data(json.utf8)))
         #expect(session.cwd == "/r")
         let tab = ClaudeTab(session: session, account: nil, configDir: "/h/.claude-accounts/rai")
-        #expect(tab.resume == "env CLAUDE_CONFIG_DIR='/h/.claude-accounts/rai' claude --resume abc\n")
+        // Claude finds a session by its directory, so the resume goes there whatever the tab's is.
+        #expect(tab.resume == "cd '/r' && env CLAUDE_CONFIG_DIR='/h/.claude-accounts/rai' claude --resume abc\n")
         #expect(ClaudeTab(session: session, account: nil, configDir: nil).resume == nil)
     }
 
