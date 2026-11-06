@@ -43,6 +43,14 @@ final class ClaylibMenuBar: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        let missing = OpenSessions.shared.missing.count
+        if missing > 0 {
+            let restore = NSMenuItem(
+                title: "Restore \(missing) Claude Session\(missing == 1 ? "" : "s")", action: #selector(restore), keyEquivalent: "")
+            restore.target = self
+            menu.addItem(restore)
+            menu.addItem(.separator())
+        }
         for group in runs(tabs.map(StripTab.init(window:)), by: \.repo) {
             if menu.numberOfItems > 0 { menu.addItem(.separator()) }
             let header = NSMenuItem(title: group[0].repo.isEmpty ? "other" : group[0].repo, action: nil, keyEquivalent: "")
@@ -61,6 +69,11 @@ final class ClaylibMenuBar: NSObject, NSMenuDelegate {
         if menu.numberOfItems == 0 {
             menu.addItem(NSMenuItem(title: "No terminals", action: nil, keyEquivalent: ""))
         }
+    }
+
+    @objc private func restore() {
+        OpenSessions.shared.reopen()
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func open(_ sender: NSMenuItem) {

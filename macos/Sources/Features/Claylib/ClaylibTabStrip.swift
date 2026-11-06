@@ -130,11 +130,9 @@ struct ClaylibTabStrip: View {
     /// Idle Claude sessions in terminals that aren't Ghostty's, such as tmux panes. Busy and
     /// waiting ones are left until they're idle, as stopping them would lose the turn or choice.
     private var sessionsElsewhere: [ClaudeTab] {
-        let here = Set(NSApp.windows
-            .compactMap { $0.windowController as? BaseTerminalController }
-            .flatMap { $0.surfaceTree.compactMap { $0.surfaceModel?.ttyName } })
+        let here = OpenSessions.ttys
         return sessions.byTTY
-            .filter { !here.contains($0.key) && $0.value.session.status == .idle && $0.value.resume != nil }
+            .filter { !here.contains($0.key) && $0.value.session.status == .idle && $0.value.open != nil }
             .map(\.value)
             .sorted { ($0.session.cwd ?? "") < ($1.session.cwd ?? "") }
     }
@@ -148,7 +146,7 @@ struct ClaylibTabStrip: View {
                 // Resuming while the old process still writes the transcript would fork it.
                 for _ in 0..<40 where kill(pid, 0) == 0 { try? await Task.sleep(for: .milliseconds(250)) }
                 guard kill(pid, 0) != 0 else { return }
-                await MainActor.run { newTab(from: window, in: tab.session.cwd, running: tab.resume) }
+                await MainActor.run { newTab(from: window, in: tab.session.cwd, running: tab.open?.resume) }
             }
         }
     }

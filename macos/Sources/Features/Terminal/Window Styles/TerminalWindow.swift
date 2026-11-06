@@ -71,12 +71,7 @@ class TerminalWindow: NSWindow {
 
     /// Claylib: the Claude session in this tab's focused terminal.
     var claudeTab: ClaudeTab? {
-        didSet {
-            guard claudeTab != oldValue else { return }
-            ClaylibTabs.shared.changed()
-            // A restored tab resumes the session its terminal last ran (SurfaceView's coding).
-            invalidateRestorableState()
-        }
+        didSet { if claudeTab != oldValue { ClaylibTabs.shared.changed() } }
     }
 
     /// Claylib: the tab's name without the Claude mark, for the tab strip, which draws the status itself.

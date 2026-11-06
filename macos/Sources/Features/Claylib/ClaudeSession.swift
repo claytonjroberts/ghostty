@@ -150,11 +150,10 @@ struct ClaudeTab: Equatable {
         ][name]
     }
 
-    /// What a shell types to resume the session under its account. It goes to the session's
-    /// directory first: Claude finds a session by it, and a restored tab may start elsewhere.
-    var resume: String? {
+    /// The session as Ghostty keeps it to reopen; nil without what resuming needs.
+    var open: OpenSession? {
         guard let id = session.id, let cwd = session.cwd, let configDir else { return nil }
-        return "cd '\(cwd)' && env CLAUDE_CONFIG_DIR='\(configDir)' claude --resume \(id)\n"
+        return OpenSession(id: id, cwd: cwd, configDir: configDir)
     }
 
     /// The session's title when it has one, else `fallback`.
