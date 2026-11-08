@@ -132,7 +132,8 @@ struct ClaylibTabStrip: View {
             if rows.isEmpty { HStack { Spacer(minLength: 0); trailingButtons(windows) } }
         }
         .padding(.horizontal, 8)
-        .padding(.top, 4)
+        // A line of room above the tabs: hovering near the screen top drops the menu bar over them.
+        .padding(.top, 22)
         .frame(maxWidth: .infinity, minHeight: 32, alignment: .bottomLeading)
         .background(Color(strip))
         .id(tabs.revision)
