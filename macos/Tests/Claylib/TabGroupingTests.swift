@@ -51,6 +51,14 @@ struct TabStripTests {
         #expect(runs([String](), by: { $0 }).isEmpty)
     }
 
+    @Test func rowsKeepGroupsWhole() {
+        // A group that doesn't fit moves to the next row; one wider than a row still splits.
+        #expect(wrapRows([[1, 2], [3, 4, 5]], perRow: 4) == [[1, 2], [3, 4, 5]])
+        #expect(wrapRows([[1], [2, 3]], perRow: 3) == [[1, 2, 3]])
+        #expect(wrapRows([[1], [2, 3, 4, 5]], perRow: 3) == [[1], [2, 3, 4], [5]])
+        #expect(wrapRows([[Int]](), perRow: 3).isEmpty)
+    }
+
     @Test func darkTextOnLightColors() {
         #expect(readable(on: .white) != readable(on: .black))
         #expect(readable(on: .white) == readable(on: .systemYellow))

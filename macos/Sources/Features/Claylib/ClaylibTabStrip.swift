@@ -74,12 +74,24 @@ func runs<T>(_ items: [T], by key: (T) -> String) -> [[T]] {
     }
 }
 
+/// Groups laid into rows of at most `perRow`: a group that doesn't fit where it is starts the
+/// next row, and only a group wider than a whole row splits.
+func wrapRows<T>(_ groups: [[T]], perRow: Int) -> [[T]] {
+    groups.reduce(into: []) { rows, group in
+        if rows.isEmpty || rows[rows.count - 1].count + group.count > perRow { rows.append([]) }
+        for item in group {
+            if rows[rows.count - 1].count == perRow { rows.append([]) }
+            rows[rows.count - 1].append(item)
+        }
+    }
+}
+
 /// Claylib: the window's tabs in place of the native tab bar (hidden by TerminalWindow), grouped
 /// Safari style: each repo's label in its color, then its tabs underlined in that color. The
 /// selected tab is filled with that color. A tab shows its Claude status and its name, with its
 /// key and billing account in its tooltip; a tab running Claude is
 /// outlined in its /color. The + after a group opens a tab beside it, in its directory, running
-/// Claude. Tabs wrap onto another row past `perRow`. Dragging a tab reorders it within its group;
+/// Claude. A group that doesn't fit on a row moves to the next. Dragging a tab reorders it within its group;
 /// dragging a group's label moves the whole group.
 struct ClaylibTabStrip: View {
     /// Any terminal in the window; its window is read on every redraw, as tabs move between windows.
@@ -96,7 +108,7 @@ struct ClaylibTabStrip: View {
         let windows = surface?.window.map { $0.tabGroup?.windows ?? [$0] } ?? []
         let all = windows.map(StripTab.init(window:))
         let groups = runs(all, by: \.repo).map { $0.map(\.window) }
-        let rows = stride(from: 0, to: all.count, by: Self.perRow).map { Array(all[$0..<min($0 + Self.perRow, all.count)]) }
+        let rows = wrapRows(runs(all, by: \.repo), perRow: Self.perRow)
         VStack(alignment: .leading, spacing: 3) {
             ForEach(rows.indices, id: \.self) { row in
                 // Tabs are direct children of one stack, so they share its width evenly. A group
