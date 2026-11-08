@@ -34,14 +34,19 @@ struct TabGroupingTests {
     }
 
     @Test func parsesMeta() {
-        let repo = TabRepo(meta: "BA3F1D\tclaylib\tclaylib\n", branch: "main\n".trimmingCharacters(in: .newlines))
+        let repo = TabRepo(meta: "BA3F1D\tclaylib\tclaylib\n", branch: "main\n".trimmingCharacters(in: .newlines), dir: "/r")
         #expect(repo.name == "claylib")
         #expect(repo.color != nil)
         #expect(repo.branch == "main")
-        let none = TabRepo(meta: "default\t\t", branch: "")
+        let none = TabRepo(meta: "default\t\t", branch: "", dir: "/r")
         #expect(none.name == "")
         #expect(none.color == nil)
         #expect(none.branch == nil)
+    }
+
+    @Test func homeIsItsOwnGroup() {
+        #expect(TabRepo(meta: "default\t\t", branch: nil, dir: NSHomeDirectory()).name == TabRepo.home)
+        #expect(TabRepo(meta: "default\t\t", branch: nil, dir: NSHomeDirectory() + "/Downloads").name == "")
     }
 }
 

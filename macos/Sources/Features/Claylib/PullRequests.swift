@@ -32,7 +32,7 @@ final class PullRequests: ObservableObject {
     /// Refetches the PRs of the repo checked out in `dir` unless that was under two minutes ago.
     /// shortcut: lists only your own PRs, as pr_status.py does; someone else's branch shows none.
     func refresh(_ repo: TabRepo, dir: String) async {
-        guard !repo.name.isEmpty, fetched[repo.name].map({ Date().timeIntervalSince($0) > 120 }) ?? true else { return }
+        guard repo.branch != nil, fetched[repo.name].map({ Date().timeIntervalSince($0) > 120 }) ?? true else { return }
         fetched[repo.name] = Date()
         let script = Self.script
         let output = await Task.detached {

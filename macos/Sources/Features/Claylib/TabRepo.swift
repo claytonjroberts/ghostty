@@ -3,15 +3,18 @@ import AppKit
 /// The repo a tab's directory is in, from claylib's `claylib-tab-color` (the one source of the
 /// directory to repo and color mapping), and the branch checked out there.
 struct TabRepo: Equatable {
-    /// "" outside a repo.
+    /// `home` in the home directory, "" in any other directory outside a repo.
     let name: String
     let color: NSColor?
     let branch: String?
 
+    /// The home directory's group, drawn with a house.
+    static let home = "~/"
+
     /// Parses `claylib-tab-color --dir <dir> --meta`: `<RRGGBB or default>\t<repo>\t<worktree>`.
-    init(meta: String, branch: String?) {
+    init(meta: String, branch: String?, dir: String) {
         let fields = meta.trimmingCharacters(in: .newlines).components(separatedBy: "\t")
-        name = fields.count > 1 ? fields[1] : ""
+        name = dir == NSHomeDirectory() ? Self.home : fields.count > 1 ? fields[1] : ""
         color = fields.first.flatMap(ClaudeAccount.color(of:))
         self.branch = branch.flatMap { $0.isEmpty ? nil : $0 }
     }
@@ -29,7 +32,8 @@ struct TabRepo: Equatable {
             TabRepo(
                 meta: run(script, ["--dir", dir, "--meta"]),
                 branch: run("/usr/bin/git", ["-C", dir, "branch", "--show-current"])
-                    .trimmingCharacters(in: .whitespacesAndNewlines))
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                dir: dir)
         }.value
         cache[dir] = repo
         return repo
