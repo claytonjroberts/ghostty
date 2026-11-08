@@ -1719,7 +1719,7 @@ fn mouseRefreshLinks(
             .{ .surface = self },
             .mouse_shape,
             // Claylib: any hover underlines a link; the hand shows only once ⌘ makes it clickable.
-            if (self.mouseModsWithCapture(self.mouse.mods).equal(input.ctrlOrSuper(.{}))) .pointer else self.io.terminal.mouse_shape,
+            if (self.linkModsHeld()) .pointer else self.io.terminal.mouse_shape,
         );
 
         if (preview) {
@@ -4064,6 +4064,9 @@ pub fn mouseButtonCallback(
             // then we do not do a mouse report.
             if (mods.shift and !shift_capture) break :report;
 
+            // Claylib: a ⌘-click on a link opens it on release; the program never sees it.
+            if (button == .left and self.mouse.over_link and self.linkModsHeld()) break :report;
+
             // In any other mouse button scenario without shift pressed we
             // clear the selection since the underlying application can handle
             // that in any way (i.e. "scrolling").
@@ -4441,6 +4444,11 @@ const Link = struct {
     selection: terminal.Selection,
 };
 
+/// ⌘ (ctrl off macOS) alone: a click opens the link under the mouse.
+fn linkModsHeld(self: *Surface) bool {
+    return self.mouseModsWithCapture(self.mouse.mods).equal(input.ctrlOrSuper(.{}));
+}
+
 /// Returns the link at the given cursor position, if any.
 /// With `any_mods`, whatever modifiers are held, for highlighting on hover.
 ///
@@ -4465,8 +4473,7 @@ fn linkAtPos(
     const mouse_mods = self.mouseModsWithCapture(self.mouse.mods);
 
     // If we have the proper modifiers set then we can check for OSC8 links.
-    if (self.config.link_osc8 and
-        (any_mods or mouse_mods.equal(input.ctrlOrSuper(.{}))))
+    if (self.config.link_osc8 and (any_mods or self.linkModsHeld()))
     hyperlink: {
         const rac = mouse_pin.rowAndCell();
         const cell = rac.cell;
@@ -4763,15 +4770,10 @@ pub fn cursorPosCallback(
     // OR
     // 2. the cursor position has changed (either we have no previous state, or the state has
     //    changed)
-    // AND
-    // 1. mouse reporting is off
-    // OR
-    // 2. mouse reporting is on and we are not reporting shift to the terminal
-    if ((over_link or
+    // Claylib: even under mouse reporting, as tmux always reports; ⌘-clicking a link isn't reported.
+    if (over_link or
         self.mouse.link_point == null or
-        (self.mouse.link_point != null and !self.mouse.link_point.?.eql(pos_vp))) and
-        (self.io.terminal.flags.mouse_event == .none or
-            (self.mouse.mods.shift and !self.mouseShiftCapture(false))))
+        (self.mouse.link_point != null and !self.mouse.link_point.?.eql(pos_vp)))
     {
         // If we were previously over a link, we always update. We do this so that if the text
         // changed underneath us, even if the mouse didn't move, we update the URL hints and state
