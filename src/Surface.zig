@@ -2188,6 +2188,17 @@ pub fn pwd(
     return try alloc.dupe(u8, terminal_pwd);
 }
 
+/// A bare `host.tld/path`, matched as a relative path, that names a website.
+fn looksLikeWebAddress(str: []const u8) bool {
+    const host = str[0 .. std.mem.indexOfScalar(u8, str, '/') orelse return false];
+    if (host.len == 0 or host[0] == '.') return false;
+    // A top-level domain is two or more letters; that rules out `foo.d/` directories.
+    const tld = host[(std.mem.lastIndexOfScalar(u8, host, '.') orelse return false) + 1 ..];
+    if (tld.len < 2) return false;
+    for (tld) |c| if (!std.ascii.isAlphabetic(c)) return false;
+    return true;
+}
+
 /// Resolves a relative file path to an absolute path using the terminal's pwd.
 fn resolvePathForOpening(
     self: *Surface,
@@ -4573,7 +4584,14 @@ fn processLinks(self: *Surface, pos: apprt.CursorPos) !bool {
             const resolved_path = try self.resolvePathForOpening(str);
             defer if (resolved_path) |p| self.alloc.free(p);
 
-            const url_to_open = resolved_path orelse str;
+            // Claylib: a bare `host.tld/path` that isn't a file here is a website, not a root path.
+            const web = if (resolved_path == null and looksLikeWebAddress(str))
+                try std.mem.concat(self.alloc, u8, &.{ "https://", str })
+            else
+                null;
+            defer if (web) |w| self.alloc.free(w);
+
+            const url_to_open = resolved_path orelse web orelse str;
             try self.openUrl(.{ .kind = .unknown, .url = url_to_open });
         },
 
@@ -6748,4 +6766,15 @@ test "promptClickRelativeRow" {
         );
         try testing.expectEqual(case.expected, promptClickRelativeRow(&pages, prompt, click));
     }
+}
+
+test "looksLikeWebAddress" {
+    const testing = std.testing;
+    try testing.expect(looksLikeWebAddress("developer.apple.com/account"));
+    try testing.expect(looksLikeWebAddress("github.com/ghostty-org/ghostty"));
+    try testing.expect(!looksLikeWebAddress("src/config/url.zig"));
+    try testing.expect(!looksLikeWebAddress("./foo.com/bar"));
+    try testing.expect(!looksLikeWebAddress("/etc/hosts"));
+    try testing.expect(!looksLikeWebAddress("foo.d/bar"));
+    try testing.expect(!looksLikeWebAddress("https://example.com/x"));
 }
