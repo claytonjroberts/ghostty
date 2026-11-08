@@ -2,8 +2,8 @@
   "color-space-for-untagged-svg-colors" : "display-p3",
   "fill" : {
     "linear-gradient" : [
-      "display-p3:0.87945,0.87945,0.87945,1.00000",
-      "display-p3:0.40000,0.40000,0.40392,1.00000"
+      "srgb:0.82353,0.76863,0.89412,1.00000",
+      "srgb:0.28627,0.22745,0.38824,1.00000"
     ]
   },
   "groups" : [
@@ -110,7 +110,7 @@
         {
           "blend-mode" : "normal",
           "fill" : {
-            "solid" : "extended-srgb:0.00000,0.47843,1.00000,1.00000"
+            "solid" : "srgb:0.00392,0.80392,0.99608,1.00000"
           },
           "glass" : true,
           "hidden" : false,
