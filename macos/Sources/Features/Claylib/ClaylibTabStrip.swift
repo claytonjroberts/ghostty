@@ -268,7 +268,10 @@ private struct GroupLabel: View {
     let color: NSColor
 
     var body: some View {
-        Text(repo.isEmpty ? "other" : repo)
+        HStack(spacing: 3) {
+            if repo == TabRepo.home { Image(systemName: "house.fill") }
+            Text(repo.isEmpty ? "other" : repo)
+        }
             .font(.system(size: 11, weight: .semibold))
             .lineLimit(1)
             .padding(.horizontal, 8)
