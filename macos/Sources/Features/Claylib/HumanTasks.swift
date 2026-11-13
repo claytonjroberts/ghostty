@@ -1,0 +1,99 @@
+import AppKit
+import Foundation
+
+/// One task file from agent-dispatcher's human-task folder: something a Claude session needs
+/// Clayton to do, or a question that can wait. agent_dispatcher/human_tasks.py owns the format.
+struct HumanTask: Decodable, Identifiable, Equatable {
+    enum Kind: String, Decodable { case action, question }
+
+    let id: String
+    let title: String
+    let created: Double
+    /// Optional fields are absent from files written before they existed.
+    private let kindValue: Kind?
+    private let commandValue: String?
+    let host: String?
+    private let optionsValue: [String]?
+    private let answerValue: String?
+    let doneAt: Double?
+
+    var kind: Kind { kindValue ?? .action }
+    var command: String { commandValue ?? "" }
+    var options: [String] { optionsValue ?? [] }
+    var answer: String { answerValue ?? "" }
+    var done: Bool { doneAt != nil }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, created, host
+        case kindValue = "kind", commandValue = "command", optionsValue = "options", answerValue = "answer"
+        case doneAt = "done_at"
+    }
+
+    /// The tasks in these files, oldest first; a file that doesn't parse is skipped.
+    static func parse(_ files: [Data]) -> [HumanTask] {
+        files.compactMap { try? JSONDecoder().decode(HumanTask.self, from: $0) }.sorted { $0.created < $1.created }
+    }
+}
+
+/// The human-task folder, kept current by watching it. Changes go through agent-dispatcher's
+/// `human-task` CLI, so the fork never writes the format or reimplements the 72-hour prune.
+@MainActor
+final class HumanTasks: ObservableObject {
+    static let shared = HumanTasks()
+
+    @Published private(set) var tasks: [HumanTask] = []
+
+    private static let home = FileManager.default.homeDirectoryForCurrentUser.path
+    /// Mirrors TASKS_DIR in agent_dispatcher/human_tasks.py.
+    static let dir = home + "/.local/state/agent-dispatcher/human-tasks"
+    private var watcher: FileWatcher?
+
+    private init() {
+        // FSEvents can't watch a folder that doesn't exist yet.
+        try? FileManager.default.createDirectory(atPath: Self.dir, withIntermediateDirectories: true)
+        reload()
+        watcher = FileWatcher(paths: [Self.dir]) { [weak self] _ in self?.reload() }
+    }
+
+    var openActions: [HumanTask] { tasks.filter { !$0.done && $0.kind == .action } }
+    var openQuestions: [HumanTask] { tasks.filter { !$0.done && $0.kind == .question } }
+    var finished: [HumanTask] { tasks.filter(\.done) }
+
+    private func reload() {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: Self.dir)) ?? []
+        let files = names.filter { $0.hasSuffix(".json") }.compactMap { FileManager.default.contents(atPath: Self.dir + "/" + $0) }
+        let parsed = HumanTask.parse(files)
+        if parsed != tasks { tasks = parsed }
+    }
+
+    /// Runs `human-task <args>` off the main thread; its stdout.
+    private nonisolated static func cli(_ args: [String]) async -> String {
+        await Task.detached {
+            TabRepo.run(
+                "/opt/homebrew/bin/uv",
+                ["run", "--quiet", "--directory", home + "/repos/agent-dispatcher", "human-task"] + args)
+        }.value
+    }
+
+    /// Clayton looked at the list: what the 72-hour prune counts as having seen a task.
+    func visit() { Task { _ = await Self.cli(["visit"]) } }
+    func done(_ task: HumanTask) { Task { _ = await Self.cli(["done", task.id]) } }
+    func reopen(_ task: HumanTask) { Task { _ = await Self.cli(["reopen", task.id]) } }
+    func answer(_ task: HumanTask, _ text: String) { Task { _ = await Self.cli(["answer", task.id, text]) } }
+
+    /// Starts the task's command in its own tmux session and opens a tab attached to it.
+    func run(_ task: HumanTask) {
+        Task {
+            let session = await Self.cli(["start", task.id]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !session.isEmpty, let ghostty = (NSApp.delegate as? AppDelegate)?.ghostty else {
+                NSSound.beep()
+                return
+            }
+            var config = Ghostty.SurfaceConfiguration()
+            config.command = ClaylibTmux.attach(session)
+            let parent = NSApp.orderedWindows.first { $0 is TerminalWindow }
+            TerminalController.newTab(ghostty, from: parent, withBaseConfig: config)?.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+}
