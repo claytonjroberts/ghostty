@@ -32,6 +32,8 @@ struct HumanTasksTests {
         #expect(task.note.isEmpty)
         let noted = try #require(HumanTask.parse([file(#"{"id": "n", "title": "", "created": 1, "note": "needs a relink"}"#)]).first)
         #expect(noted.note == "needs a relink")
+        let rejected = try #require(HumanTask.parse([file(#"{"id": "r", "title": "", "created": 1, "rejection": "not now", "done_at": 2}"#)]).first)
+        #expect(rejected.rejection == "not now" && rejected.done)
         #expect(!task.done)
     }
 
