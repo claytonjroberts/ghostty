@@ -32,6 +32,16 @@ struct HumanTasksTests {
         #expect(!task.done)
     }
 
+    @Test func blockersComeFirstWithWhoAskedAndWhy() {
+        let tasks = HumanTask.parse([
+            file(#"{"id": "later", "title": "", "created": 1}"#),
+            file(#"{"id": "now", "title": "", "created": 2, "blocking": true, "requester": "coordinator", "details": "why"}"#),
+        ])
+        #expect(tasks.map(\.id) == ["now", "later"])
+        #expect(tasks[0].requester == "coordinator" && tasks[0].details == "why")
+        #expect(tasks[1].requester.isEmpty && !tasks[1].blocking)
+    }
+
     @Test func taskSessionsAreTheOnesHumanTaskStarts() {
         #expect(HumanTasks.isTaskSession("task-0fc81255"))
         #expect(!HumanTasks.isTaskSession("agent-worker-1"))

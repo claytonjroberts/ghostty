@@ -46,11 +46,23 @@ private struct HumanTaskCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             HStack(spacing: 10) {
+                if !task.done, task.saysIfBlocking {
+                    Text(task.blocking ? "Blocking" : "Optional")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(task.blocking ? .red : .secondary)
+                }
+                if !task.requester.isEmpty { Label(task.requester, systemImage: "person.crop.circle") }
                 if let host = task.host, !host.isEmpty { Label(host, systemImage: "server.rack") }
                 Text(Date(timeIntervalSince1970: task.created).formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            if !task.details.isEmpty {
+                Text(task.details)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
             if !task.command.isEmpty {
                 Text(task.command)
                     .font(.system(.callout, design: .monospaced))
@@ -76,7 +88,7 @@ private struct HumanTaskCard: View {
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(task.blocking && !task.done ? Color.red.opacity(0.5) : Color.primary.opacity(0.1)))
         .opacity(task.done ? 0.6 : 1)
     }
 
