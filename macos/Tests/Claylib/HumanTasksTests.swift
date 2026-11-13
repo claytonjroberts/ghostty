@@ -24,6 +24,14 @@ struct HumanTasksTests {
         #expect(task.done)
     }
 
+    @Test func failedRunKeepsItsResult() throws {
+        let json = #"{"id": "f", "title": "", "created": 1, "exit_status": 255, "output": "a\nb\nc"}"#
+        let task = try #require(HumanTask.parse([file(json)]).first)
+        #expect(task.exitStatus == 255)
+        #expect(task.outputTail(lines: 2) == "b\nc")
+        #expect(!task.done)
+    }
+
     @Test func taskSessionsAreTheOnesHumanTaskStarts() {
         #expect(HumanTasks.isTaskSession("task-0fc81255"))
         #expect(!HumanTasks.isTaskSession("agent-worker-1"))
