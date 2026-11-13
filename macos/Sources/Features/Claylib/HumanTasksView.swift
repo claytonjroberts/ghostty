@@ -38,6 +38,7 @@ private struct HumanTaskCard: View {
     let task: HumanTask
     @ObservedObject var model: HumanTasks
     @State private var reply = ""
+    @State private var note = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -73,7 +74,7 @@ private struct HumanTaskCard: View {
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.07)))
             }
             if let status = task.exitStatus { result(status) }
-            if task.kind == .question { question }
+            if task.kind == .question { question } else { noteForSession }
             HStack {
                 Spacer()
                 if task.kind == .action, !task.command.isEmpty, !task.done {
@@ -116,16 +117,28 @@ private struct HumanTaskCard: View {
             ForEach(task.options, id: \.self) { option in
                 Button(option) { model.answer(task, option) }
             }
-            HStack {
-                TextField("Your answer", text: $reply).onSubmit(send)
-                Button("Answer", action: send).disabled(reply.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
+            entry("Your answer", $reply, "Answer") { model.answer(task, $0) }
         }
     }
 
-    private func send() {
-        let text = reply.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        model.answer(task, text)
+    /// Relayed to the asking session through list_human_tasks, whether or not the run worked.
+    @ViewBuilder
+    private var noteForSession: some View {
+        if !task.note.isEmpty {
+            Text("Your note: \(task.note)").font(.callout).fixedSize(horizontal: false, vertical: true)
+        }
+        entry(task.note.isEmpty ? "Note for the session" : "Replace your note", $note, "Send") {
+            model.note(task, $0)
+            note = ""
+        }
+    }
+
+    private func entry(_ prompt: String, _ text: Binding<String>, _ label: String, _ submit: @escaping (String) -> Void) -> some View {
+        let trimmed = text.wrappedValue.trimmingCharacters(in: .whitespaces)
+        let send = { if !trimmed.isEmpty { submit(trimmed) } }
+        return HStack {
+            TextField(prompt, text: text).onSubmit(send)
+            Button(label, action: send).disabled(trimmed.isEmpty)
+        }
     }
 }

@@ -29,6 +29,9 @@ struct HumanTasksTests {
         let task = try #require(HumanTask.parse([file(json)]).first)
         #expect(task.exitStatus == 255)
         #expect(task.outputTail(lines: 2) == "b\nc")
+        #expect(task.note.isEmpty)
+        let noted = try #require(HumanTask.parse([file(#"{"id": "n", "title": "", "created": 1, "note": "needs a relink"}"#)]).first)
+        #expect(noted.note == "needs a relink")
         #expect(!task.done)
     }
 
