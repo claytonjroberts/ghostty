@@ -23,6 +23,7 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     private let detailsValue: String?
     private let blockingValue: Bool?
     private let noteValue: String?
+    private let rejectionValue: String?
 
     var kind: Kind { kindValue ?? .action }
     var command: String { commandValue ?? "" }
@@ -39,6 +40,8 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     var saysIfBlocking: Bool { blockingValue != nil }
     /// What Clayton told the asking session, typically about a run.
     var note: String { noteValue ?? "" }
+    /// Why Clayton declined it; such a task is also done.
+    var rejection: String { rejectionValue ?? "" }
 
     func outputTail(lines: Int) -> String {
         output.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines).joined(separator: "\n")
@@ -48,7 +51,7 @@ struct HumanTask: Decodable, Identifiable, Equatable {
         case id, title, created, host
         case kindValue = "kind", commandValue = "command", optionsValue = "options", answerValue = "answer"
         case doneAt = "done_at", exitStatus = "exit_status", outputValue = "output"
-        case requesterValue = "requester", detailsValue = "details", blockingValue = "blocking", noteValue = "note"
+        case requesterValue = "requester", detailsValue = "details", blockingValue = "blocking", noteValue = "note", rejectionValue = "rejection"
     }
 
     /// The tasks in these files, blockers first, then oldest first; a file that doesn't parse is skipped.
@@ -104,6 +107,7 @@ final class HumanTasks: ObservableObject {
     func reopen(_ task: HumanTask) { Task { _ = await Self.cli(["reopen", task.id]) } }
     func answer(_ task: HumanTask, _ text: String) { Task { _ = await Self.cli(["answer", task.id, text]) } }
     func note(_ task: HumanTask, _ text: String) { Task { _ = await Self.cli(["note", task.id, text]) } }
+    func reject(_ task: HumanTask, _ reason: String) { Task { _ = await Self.cli(["reject", task.id, reason]) } }
 
     /// Starts the task's command in its own tmux session and opens a tab attached to it.
     func run(_ task: HumanTask) {

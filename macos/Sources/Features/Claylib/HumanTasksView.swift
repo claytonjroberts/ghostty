@@ -74,6 +74,12 @@ private struct HumanTaskCard: View {
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.07)))
             }
             if let status = task.exitStatus { result(status) }
+            if !task.rejection.isEmpty {
+                Label("Rejected: \(task.rejection)", systemImage: "hand.raised.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if task.kind == .question { question } else { noteForSession }
             HStack {
                 Spacer()
@@ -112,12 +118,12 @@ private struct HumanTaskCard: View {
     @ViewBuilder
     private var question: some View {
         if task.done {
-            Text("Answered: \(task.answer)").fixedSize(horizontal: false, vertical: true)
+            if task.rejection.isEmpty { Text("Answered: \(task.answer)").fixedSize(horizontal: false, vertical: true) }
         } else {
             ForEach(task.options, id: \.self) { option in
                 Button(option) { model.answer(task, option) }
             }
-            entry("Your answer", $reply, "Answer") { model.answer(task, $0) }
+            entry("Answer, or why you reject it", $reply, "Answer") { model.answer(task, $0) }
         }
     }
 
@@ -127,18 +133,22 @@ private struct HumanTaskCard: View {
         if !task.note.isEmpty {
             Text("Your note: \(task.note)").font(.callout).fixedSize(horizontal: false, vertical: true)
         }
-        entry(task.note.isEmpty ? "Note for the session" : "Replace your note", $note, "Send") {
+        entry(task.done ? "Note for the session" : "Note, or why you reject it", $note, "Send") {
             model.note(task, $0)
             note = ""
         }
     }
 
+    /// A text field with its button and, while the task is open, Reject, which takes the text as the reason.
     private func entry(_ prompt: String, _ text: Binding<String>, _ label: String, _ submit: @escaping (String) -> Void) -> some View {
         let trimmed = text.wrappedValue.trimmingCharacters(in: .whitespaces)
         let send = { if !trimmed.isEmpty { submit(trimmed) } }
         return HStack {
             TextField(prompt, text: text).onSubmit(send)
             Button(label, action: send).disabled(trimmed.isEmpty)
+            if !task.done {
+                Button("Reject") { model.reject(task, trimmed) }.disabled(trimmed.isEmpty)
+            }
         }
     }
 }
