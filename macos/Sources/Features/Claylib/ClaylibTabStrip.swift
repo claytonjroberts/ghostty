@@ -270,6 +270,7 @@ private struct GroupLabel: View {
     var body: some View {
         HStack(spacing: 3) {
             if repo == TabRepo.home { Image(systemName: "house.fill") }
+            if repo == TabRepo.humanTasks.name { Image(systemName: "flag.fill") }
             Text(repo.isEmpty ? "other" : repo)
         }
             .font(.system(size: 11, weight: .semibold))

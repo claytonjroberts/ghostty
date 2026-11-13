@@ -952,7 +952,7 @@ class BaseTerminalController: NSWindowController,
         guard let dir = to?.path else { return }
         Task { @MainActor [weak self] in
             let repo = await TabRepo.lookup(dir)
-            guard let self, let window = window as? TerminalWindow else { return }
+            guard let self, let window = window as? TerminalWindow, window.tabRepo != .humanTasks else { return }
             claylibRepo = repo
             window.tabRepo = repo
             TabGrouping.regroup(window)
