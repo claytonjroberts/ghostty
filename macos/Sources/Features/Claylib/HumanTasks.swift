@@ -19,6 +19,9 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     /// Set once Run's command ends; `output` is what it printed, for the session that asked too.
     let exitStatus: Int?
     private let outputValue: String?
+    private let requesterValue: String?
+    private let detailsValue: String?
+    private let blockingValue: Bool?
 
     var kind: Kind { kindValue ?? .action }
     var command: String { commandValue ?? "" }
@@ -26,6 +29,13 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     var answer: String { answerValue ?? "" }
     var done: Bool { doneAt != nil }
     var output: String { outputValue ?? "" }
+    /// The Claude session that asked.
+    var requester: String { requesterValue ?? "" }
+    var details: String { detailsValue ?? "" }
+    /// The asking session is stopped until this is done; otherwise it's optional.
+    var blocking: Bool { blockingValue ?? false }
+    /// Tasks from before `blocking` existed say neither.
+    var saysIfBlocking: Bool { blockingValue != nil }
 
     func outputTail(lines: Int) -> String {
         output.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines).joined(separator: "\n")
@@ -35,11 +45,13 @@ struct HumanTask: Decodable, Identifiable, Equatable {
         case id, title, created, host
         case kindValue = "kind", commandValue = "command", optionsValue = "options", answerValue = "answer"
         case doneAt = "done_at", exitStatus = "exit_status", outputValue = "output"
+        case requesterValue = "requester", detailsValue = "details", blockingValue = "blocking"
     }
 
-    /// The tasks in these files, oldest first; a file that doesn't parse is skipped.
+    /// The tasks in these files, blockers first, then oldest first; a file that doesn't parse is skipped.
     static func parse(_ files: [Data]) -> [HumanTask] {
-        files.compactMap { try? JSONDecoder().decode(HumanTask.self, from: $0) }.sorted { $0.created < $1.created }
+        files.compactMap { try? JSONDecoder().decode(HumanTask.self, from: $0) }
+            .sorted { ($0.blocking ? 0 : 1, $0.created) < ($1.blocking ? 0 : 1, $1.created) }
     }
 }
 
