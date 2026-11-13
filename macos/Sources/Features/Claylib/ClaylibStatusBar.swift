@@ -13,6 +13,7 @@ struct ClaylibStatusBar: View {
     @ObservedObject private var model = SystemStatsModel.shared
     @ObservedObject private var prs = PullRequests.shared
     @State private var repo: TabRepo?
+    @State private var host: String?
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -20,6 +21,12 @@ struct ClaylibStatusBar: View {
                 Outlined {
                     Text(account.label).bold().foregroundColor(account.color.map(Color.init))
                 }
+            }
+            if let host {
+                Outlined {
+                    Label(host, systemImage: host == HostStatus.local ? "laptopcomputer" : "network")
+                }
+                .help(host == HostStatus.local ? "This tab runs on this Mac" : "This tab is ssh'd to \(host)")
             }
             if let pr = repo.flatMap(prs.pr(for:)) {
                 PRBox(pr: pr)
@@ -40,6 +47,14 @@ struct ClaylibStatusBar: View {
             while !Task.isCancelled {
                 await prs.refresh(found, dir: dir)
                 try? await Task.sleep(for: .seconds(120))
+            }
+        }
+        .task(id: tty) {
+            host = nil
+            guard let tty else { return }
+            while !Task.isCancelled {
+                host = await HostStatus.check(tty: tty)
+                try? await Task.sleep(for: .seconds(3))
             }
         }
     }
