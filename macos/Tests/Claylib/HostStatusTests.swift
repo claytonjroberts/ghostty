@@ -9,6 +9,11 @@ struct HostStatusTests {
         #expect(HostStatus.name(ps: ps, hosts: hosts) == "Mothership")
     }
 
+    @Test func sshByTheLinkedNameIsThatComputer() {
+        let ps = "S+   ssh -t mothership /opt/homebrew/bin/tmux -L ghostty attach -t =github-actions-runner"
+        #expect(HostStatus.name(ps: ps, hosts: hosts) == "Mothership")
+    }
+
     @Test func otherHostsShowTheirHostName() {
         #expect(HostStatus.name(ps: "S+   /usr/bin/ssh -i key kaileynas", hosts: hosts) == "kaileynas")
     }

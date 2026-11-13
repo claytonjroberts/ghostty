@@ -70,7 +70,8 @@ enum HostStatus {
                   (fields[1] as NSString).lastPathComponent == "ssh",
                   let dest = destination(Array(fields.dropFirst(2))) else { continue }
             let host = dest.split(separator: "@").last.map(String.init) ?? dest
-            return hosts.first { $0.1 == dest || $0.1.split(separator: "@").last.map(String.init) == host }
+            // An ssh config alias may share the linked name.
+            return hosts.first { $0.0 == dest || $0.1 == dest || $0.1.split(separator: "@").last.map(String.init) == host }
                 .map { display($0.0) } ?? host
         }
         return nil
