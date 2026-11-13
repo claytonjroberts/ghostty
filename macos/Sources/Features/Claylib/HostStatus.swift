@@ -11,14 +11,54 @@ enum HostStatus {
         await Task.detached {
             let pane = ClaylibTmux.panesByClient()[tty] ?? tty
             let ps = TabRepo.run("/bin/ps", ["-t", (pane as NSString).lastPathComponent, "-o", "stat=,args="])
-            let hosts = ((try? String(contentsOfFile: hostsFile, encoding: .utf8)) ?? "")
-                .split(separator: "\n").compactMap { line -> (String, String)? in
-                    let fields = line.split(separator: " ").map(String.init)
-                    return fields.count == 2 ? (fields[0], fields[1]) : nil
-                }
-            return name(ps: ps, hosts: hosts) ?? local
+            return name(ps: ps, hosts: linked()) ?? local
         }.value
     }
+
+    /// Moves the Claude session in the pane a tab's terminal shows to a linked computer, or
+    /// `local`, through claylib-claude-tmux; nil when it moved, else what to tell Clayton.
+    static func move(tty: String, to host: String) async -> String? {
+        await Task.detached {
+            guard let pane = ClaylibTmux.paneID(client: tty) else { return "This tab shows no tmux pane." }
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            // An app's PATH lacks Homebrew and ~/.local/bin, where tmux and claylib live.
+            process.arguments = [
+                "PATH=\(home)/.local/bin:/opt/homebrew/bin:/usr/bin:/bin",
+                "claylib-claude-tmux", "--pane", pane, "--to", host,
+            ]
+            let err = Pipe()
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = err
+            guard (try? process.run()) != nil else { return "claylib-claude-tmux didn't start." }
+            let stderr = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            process.waitUntilExit()  // off the main thread, so safe here
+            return failure(status: process.terminationStatus, stderr: stderr)
+        }.value
+    }
+
+    /// claylib-claude-tmux's exit status and stderr as Clayton's message; nil for 0, moved.
+    static func failure(status: Int32, stderr: String) -> String? {
+        switch status {
+        case 0: nil
+        case 3: "The session stopped and couldn't be resumed anywhere. Resume it yourself:\n\n\(stderr)"
+        default: stderr.isEmpty ? "The move failed (exit \(status)); the session is where it was." : stderr
+        }
+    }
+
+    /// The linked computers, as name and ssh destination.
+    static func linked() -> [(String, String)] {
+        ((try? String(contentsOfFile: hostsFile, encoding: .utf8)) ?? "")
+            .split(separator: "\n").compactMap { line in
+                let fields = line.split(separator: " ").map(String.init)
+                return fields.count == 2 ? (fields[0], fields[1]) : nil
+            }
+    }
+
+    /// How a linked computer's name reads: "mothership" as "Mothership".
+    static func display(_ name: String) -> String { name.prefix(1).uppercased() + name.dropFirst() }
 
     /// The host of the foreground `ssh` in `ps -o stat=,args=` output, named as in `hosts`
     /// (name, destination pairs) when it matches one; nil when no ssh runs in the foreground.
@@ -31,7 +71,7 @@ enum HostStatus {
                   let dest = destination(Array(fields.dropFirst(2))) else { continue }
             let host = dest.split(separator: "@").last.map(String.init) ?? dest
             return hosts.first { $0.1 == dest || $0.1.split(separator: "@").last.map(String.init) == host }
-                .map { $0.0.prefix(1).uppercased() + $0.0.dropFirst() } ?? host
+                .map { display($0.0) } ?? host
         }
         return nil
     }

@@ -13,6 +13,12 @@ struct HostStatusTests {
         #expect(HostStatus.name(ps: "S+   /usr/bin/ssh -i key kaileynas", hosts: hosts) == "kaileynas")
     }
 
+    @Test func aMoveReportsWhatClaylibClaudeTmuxSaid() {
+        #expect(HostStatus.failure(status: 0, stderr: "") == nil)
+        #expect(HostStatus.failure(status: 1, stderr: "move-session: no Claude in %3") == "move-session: no Claude in %3")
+        #expect(HostStatus.failure(status: 3, stderr: "claude --resume abc")?.hasSuffix("\n\nclaude --resume abc") == true)
+    }
+
     @Test func noForegroundSshIsThisMac() {
         #expect(HostStatus.name(ps: "Ss+  -fish\nS    ssh clayton@100.83.245.90", hosts: hosts) == nil)
     }
