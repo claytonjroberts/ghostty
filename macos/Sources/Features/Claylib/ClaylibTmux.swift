@@ -22,6 +22,11 @@ enum ClaylibTmux {
             uniquingKeysWith: { first, _ in first })
     }
 
+    /// The id (`%N`) of the pane a tab's terminal (client tty) shows.
+    static func paneID(client: String) -> String? {
+        rows(["list-clients", "-F", "#{client_tty}\t#{pane_id}"]).first { $0.count == 2 && $0[0] == client }?[1]
+    }
+
     /// The terminals of every pane on the server, attached or not.
     static func paneTTYs() -> Set<String> {
         Set(run(["list-panes", "-a", "-F", "#{pane_tty}"]).split(separator: "\n").map(String.init))

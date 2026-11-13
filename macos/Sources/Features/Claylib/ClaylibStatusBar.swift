@@ -23,10 +23,7 @@ struct ClaylibStatusBar: View {
                 }
             }
             if let host {
-                Outlined {
-                    Label(host, systemImage: host == HostStatus.local ? "laptopcomputer" : "network")
-                }
-                .help(host == HostStatus.local ? "This tab runs on this Mac" : "This tab is ssh'd to \(host)")
+                HostChip(host: host, tty: tty, runsClaude: tty.flatMap { sessions.byTTY[$0] } != nil)
             }
             if let pr = repo.flatMap(prs.pr(for:)) {
                 PRBox(pr: pr)
@@ -69,6 +66,46 @@ private struct Outlined<Content: View>: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.5)))
+    }
+}
+
+/// The machine the focused pane is on. When it runs Claude here, or is ssh'd to where it may,
+/// a click lists this Mac and the linked computers, to move that session to one.
+private struct HostChip: View {
+    let host: String
+    let tty: String?
+    let runsClaude: Bool
+
+    var body: some View {
+        let chip = Outlined {
+            Label(host, systemImage: host == HostStatus.local ? "laptopcomputer" : "network")
+        }
+        let help = host == HostStatus.local ? "This tab runs on this Mac" : "This tab is ssh'd to \(host)"
+        if let tty, runsClaude || host != HostStatus.local {
+            Menu {
+                Section("Move this Claude session to") {
+                    ForEach([(HostStatus.local, "local")] + HostStatus.linked().map { (HostStatus.display($0.0), $0.0) }, id: \.1) { label, name in
+                        Button(label) { move(tty: tty, to: name) }.disabled(label == host)
+                    }
+                }
+            } label: { chip }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(help)
+        } else {
+            chip.help(help)
+        }
+    }
+
+    private func move(tty: String, to name: String) {
+        Task {
+            guard let problem = await HostStatus.move(tty: tty, to: name) else { return }
+            let alert = NSAlert()
+            alert.messageText = "Couldn't move the Claude session"
+            alert.informativeText = problem
+            alert.runModal()
+        }
     }
 }
 
