@@ -11,6 +11,16 @@ struct TabRepo: Equatable {
     /// The home directory's group, drawn with a house.
     static let home = "~/"
 
+    /// The group of tabs running human tasks (HumanTasks), drawn with a flag. A tab in it keeps it
+    /// whatever directory its terminal reports.
+    static let humanTasks = TabRepo(name: "human tasks", color: .systemOrange)
+
+    private init(name: String, color: NSColor?) {
+        self.name = name
+        self.color = color
+        branch = nil
+    }
+
     /// Parses `claylib-tab-color --dir <dir> --meta`: `<RRGGBB or default>\t<repo>\t<worktree>`.
     init(meta: String, branch: String?, dir: String) {
         let fields = meta.trimmingCharacters(in: .newlines).components(separatedBy: "\t")

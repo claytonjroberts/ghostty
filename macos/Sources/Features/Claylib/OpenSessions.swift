@@ -87,7 +87,9 @@ final class OpenSessions {
             config.workingDirectory = session.dir
             config.command = ClaylibTmux.attach(session.name)
             // Its shell reports a directory only on cd; the tab needs it now, for its repo.
-            open(config)?.surfaceTree.forEach { $0.pwd = session.dir }
+            let controller = open(config)
+            controller?.surfaceTree.forEach { $0.pwd = session.dir }
+            if HumanTasks.isTaskSession(session.name) { HumanTasks.adopt(controller?.window) }
         }
         for session in missing {
             var config = Ghostty.SurfaceConfiguration()

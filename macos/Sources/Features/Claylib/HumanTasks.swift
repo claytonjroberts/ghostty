@@ -92,8 +92,20 @@ final class HumanTasks: ObservableObject {
             var config = Ghostty.SurfaceConfiguration()
             config.command = ClaylibTmux.attach(session)
             let parent = NSApp.orderedWindows.first { $0 is TerminalWindow }
-            TerminalController.newTab(ghostty, from: parent, withBaseConfig: config)?.window?.makeKeyAndOrderFront(nil)
+            let window = TerminalController.newTab(ghostty, from: parent, withBaseConfig: config)?.window
+            Self.adopt(window)
+            window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    /// The tmux sessions `human-task start` makes are `task-<id>` (start_session in human_tasks.py).
+    nonisolated static func isTaskSession(_ name: String) -> Bool { name.hasPrefix("task-") }
+
+    /// Puts a task's tab in the human tasks tab group, beside the other task tabs.
+    static func adopt(_ window: NSWindow?) {
+        guard let window = window as? TerminalWindow else { return }
+        window.tabRepo = .humanTasks
+        TabGrouping.regroup(window)
     }
 }

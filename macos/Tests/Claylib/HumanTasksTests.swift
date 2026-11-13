@@ -24,6 +24,12 @@ struct HumanTasksTests {
         #expect(task.done)
     }
 
+    @Test func taskSessionsAreTheOnesHumanTaskStarts() {
+        #expect(HumanTasks.isTaskSession("task-0fc81255"))
+        #expect(!HumanTasks.isTaskSession("agent-worker-1"))
+        #expect(!HumanTasks.isTaskSession("76"))
+    }
+
     @Test func oldestFirstAndBrokenFilesSkipped() {
         let tasks = HumanTask.parse([
             file(#"{"id": "new", "title": "", "created": 9}"#),
