@@ -16,17 +16,25 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     private let optionsValue: [String]?
     private let answerValue: String?
     let doneAt: Double?
+    /// Set once Run's command ends; `output` is what it printed, for the session that asked too.
+    let exitStatus: Int?
+    private let outputValue: String?
 
     var kind: Kind { kindValue ?? .action }
     var command: String { commandValue ?? "" }
     var options: [String] { optionsValue ?? [] }
     var answer: String { answerValue ?? "" }
     var done: Bool { doneAt != nil }
+    var output: String { outputValue ?? "" }
+
+    func outputTail(lines: Int) -> String {
+        output.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines).joined(separator: "\n")
+    }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, created, host
         case kindValue = "kind", commandValue = "command", optionsValue = "options", answerValue = "answer"
-        case doneAt = "done_at"
+        case doneAt = "done_at", exitStatus = "exit_status", outputValue = "output"
     }
 
     /// The tasks in these files, oldest first; a file that doesn't parse is skipped.

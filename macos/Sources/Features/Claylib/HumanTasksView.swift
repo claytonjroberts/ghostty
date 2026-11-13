@@ -60,11 +60,12 @@ private struct HumanTaskCard: View {
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.07)))
             }
+            if let status = task.exitStatus { result(status) }
             if task.kind == .question { question }
             HStack {
                 Spacer()
                 if task.kind == .action, !task.command.isEmpty, !task.done {
-                    Button("Run") { model.run(task) }.buttonStyle(.borderedProminent)
+                    Button(task.exitStatus == nil ? "Run" : "Run Again") { model.run(task) }.buttonStyle(.borderedProminent)
                 }
                 if task.done {
                     Button("Reopen") { model.reopen(task) }
@@ -77,6 +78,22 @@ private struct HumanTaskCard: View {
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1)))
         .opacity(task.done ? 0.6 : 1)
+    }
+
+    @ViewBuilder
+    private func result(_ status: Int) -> some View {
+        Label("Exited \(status)", systemImage: status == 0 ? "checkmark.circle.fill" : "xmark.octagon.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(status == 0 ? .green : .red)
+        if !task.output.isEmpty {
+            Text(task.outputTail(lines: 12))
+                .font(.system(.caption, design: .monospaced))
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.07)))
+        }
     }
 
     @ViewBuilder
