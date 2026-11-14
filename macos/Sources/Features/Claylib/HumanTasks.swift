@@ -152,7 +152,7 @@ final class HumanTaskLinks: NSObject {
     @objc private func open(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
         guard let id = Self.taskID(event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue) else { return }
         MainActor.assumeIsolated {
-            guard let task = HumanTasks.shared.tasks.first(where: { $0.id == id }), !task.command.isEmpty else {
+            guard let task = HumanTasks.shared.tasks.first(where: { $0.id == id }), !task.done, !task.command.isEmpty else {
                 NSSound.beep()
                 return
             }
