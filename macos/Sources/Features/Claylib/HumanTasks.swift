@@ -4,7 +4,7 @@ import Foundation
 /// One task file from agent-dispatcher's human-task folder: something a Claude session needs
 /// Clayton to do, or a question that can wait. agent_dispatcher/human_tasks.py owns the format.
 struct HumanTask: Decodable, Identifiable, Equatable {
-    enum Kind: String, Decodable { case action, question }
+    enum Kind: String, Decodable { case action, question, info }
 
     let id: String
     let title: String

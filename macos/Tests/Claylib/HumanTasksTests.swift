@@ -62,6 +62,16 @@ struct HumanTasksTests {
         #expect(tasks.map(\.id) == ["old", "new"])
     }
 
+    @Test func fyiDecodesAndAnUnknownKindSkipsOnlyItsTask() {
+        let tasks = HumanTask.parse([
+            file(#"{"id": "fyi", "title": "", "created": 1, "kind": "info"}"#),
+            file(#"{"id": "future", "title": "", "created": 2, "kind": "someday"}"#),
+            file(#"{"id": "act", "title": "", "created": 3}"#),
+        ])
+        #expect(tasks.map(\.id) == ["fyi", "act"])
+        #expect(tasks.first?.kind == .info)
+    }
+
     @Test func openInTerminalLinksNameOnlyATask() {
         #expect(HumanTaskLinks.taskID("claylib-task://run/ab12") == "ab12")
         #expect(HumanTaskLinks.taskID("claylib-task://run/ab12/rm%20-rf") == nil)
