@@ -209,6 +209,9 @@ class AppDelegate: NSObject,
             // Manual autofill via the `Edit => AutoFill` menu item still work as expected.
             "NSAutoFillHeuristicControllerEnabled": false,
         ])
+
+        // Claylib: the web UI's "Open in terminal" links; before launch ends, to catch one that launched us.
+        HumanTaskLinks.shared.install()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

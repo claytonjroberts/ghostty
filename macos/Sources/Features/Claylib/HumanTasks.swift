@@ -137,3 +137,33 @@ final class HumanTasks: ObservableObject {
         TabGrouping.regroup(window)
     }
 }
+
+/// Opens `claylib-task://run/<id>`, the dispatcher web UI's "Open in terminal", as the task's Run:
+/// the link names only a task, so what runs is that task's stored command, in a visible tab.
+final class HumanTaskLinks: NSObject {
+    static let shared = HumanTaskLinks()
+
+    func install() {
+        NSAppleEventManager.shared().setEventHandler(
+            self, andSelector: #selector(open(_:reply:)),
+            forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
+    }
+
+    @objc private func open(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        guard let id = Self.taskID(event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue) else { return }
+        MainActor.assumeIsolated {
+            guard let task = HumanTasks.shared.tasks.first(where: { $0.id == id }), !task.command.isEmpty else {
+                NSSound.beep()
+                return
+            }
+            HumanTasks.shared.run(task)
+        }
+    }
+
+    /// The task id in a `claylib-task://run/<id>` link; nil for anything else.
+    static func taskID(_ link: String?) -> String? {
+        guard let url = link.flatMap(URL.init(string:)), url.scheme == "claylib-task", url.host == "run",
+              url.pathComponents.count == 2 else { return nil }
+        return url.pathComponents[1]
+    }
+}

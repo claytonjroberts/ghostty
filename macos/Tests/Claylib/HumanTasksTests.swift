@@ -61,4 +61,11 @@ struct HumanTasksTests {
         ])
         #expect(tasks.map(\.id) == ["old", "new"])
     }
+
+    @Test func openInTerminalLinksNameOnlyATask() {
+        #expect(HumanTaskLinks.taskID("claylib-task://run/ab12") == "ab12")
+        #expect(HumanTaskLinks.taskID("claylib-task://run/ab12/rm%20-rf") == nil)
+        #expect(HumanTaskLinks.taskID("claylib-task://exec/ab12") == nil)
+        #expect(HumanTaskLinks.taskID("https://run/ab12") == nil)
+    }
 }
