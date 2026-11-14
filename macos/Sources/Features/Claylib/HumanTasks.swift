@@ -117,14 +117,30 @@ final class HumanTasks: ObservableObject {
                 NSSound.beep()
                 return
             }
-            var config = Ghostty.SurfaceConfiguration()
-            config.command = ClaylibTmux.attach(session)
-            let parent = NSApp.orderedWindows.first { $0 is TerminalWindow }
-            let window = TerminalController.newTab(ghostty, from: parent, withBaseConfig: config)?.window
-            Self.adopt(window)
-            window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            Self.adopt(Self.openTab(ghostty, running: ClaylibTmux.attach(session)))
         }
+    }
+
+    /// Opens a tab attached to an agent's tmux session, wherever the router says it runs.
+    func attach(_ agent: String) {
+        Task {
+            let command = await Self.cli(["attach", agent]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !command.isEmpty, let ghostty = (NSApp.delegate as? AppDelegate)?.ghostty else {
+                NSSound.beep()
+                return
+            }
+            _ = Self.openTab(ghostty, running: command)
+        }
+    }
+
+    private static func openTab(_ ghostty: Ghostty.App, running command: String) -> NSWindow? {
+        var config = Ghostty.SurfaceConfiguration()
+        config.command = command
+        let parent = NSApp.orderedWindows.first { $0 is TerminalWindow }
+        let window = TerminalController.newTab(ghostty, from: parent, withBaseConfig: config)?.window
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        return window
     }
 
     /// The tmux sessions `human-task start` makes are `task-<id>` (start_session in human_tasks.py).
@@ -150,20 +166,33 @@ final class HumanTaskLinks: NSObject {
     }
 
     @objc private func open(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
-        guard let id = Self.taskID(event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue) else { return }
+        guard let link = Self.link(event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue) else { return }
         MainActor.assumeIsolated {
-            guard let task = HumanTasks.shared.tasks.first(where: { $0.id == id }), !task.done, !task.command.isEmpty else {
-                NSSound.beep()
-                return
+            switch link {
+            case .run(let id):
+                guard let task = HumanTasks.shared.tasks.first(where: { $0.id == id }), !task.done, !task.command.isEmpty else {
+                    NSSound.beep()
+                    return
+                }
+                HumanTasks.shared.run(task)
+            case .attach(let agent):
+                HumanTasks.shared.attach(agent)
             }
-            HumanTasks.shared.run(task)
         }
     }
 
-    /// The task id in a `claylib-task://run/<id>` link; nil for anything else.
-    static func taskID(_ link: String?) -> String? {
-        guard let url = link.flatMap(URL.init(string:)), url.scheme == "claylib-task", url.host == "run",
+    /// A link names only a task or an agent; what runs comes from the task or the router.
+    enum Link: Equatable { case run(String), attach(String) }
+
+    /// `claylib-task://run/<task id>` or `claylib-task://attach/<agent>`; nil for anything else.
+    static func link(_ link: String?) -> Link? {
+        guard let url = link.flatMap(URL.init(string:)), url.scheme == "claylib-task",
               url.pathComponents.count == 2 else { return nil }
-        return url.pathComponents[1]
+        let name = url.pathComponents[1]
+        switch url.host {
+        case "run": return .run(name)
+        case "attach" where name.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil: return .attach(name)
+        default: return nil
+        }
     }
 }

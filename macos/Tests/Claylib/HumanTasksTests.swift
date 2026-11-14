@@ -72,10 +72,13 @@ struct HumanTasksTests {
         #expect(tasks.first?.kind == .info)
     }
 
-    @Test func openInTerminalLinksNameOnlyATask() {
-        #expect(HumanTaskLinks.taskID("claylib-task://run/ab12") == "ab12")
-        #expect(HumanTaskLinks.taskID("claylib-task://run/ab12/rm%20-rf") == nil)
-        #expect(HumanTaskLinks.taskID("claylib-task://exec/ab12") == nil)
-        #expect(HumanTaskLinks.taskID("https://run/ab12") == nil)
+    @Test func linksNameOnlyATaskOrAnAgent() {
+        #expect(HumanTaskLinks.link("claylib-task://run/ab12") == .run("ab12"))
+        #expect(HumanTaskLinks.link("claylib-task://attach/worker-mothership") == .attach("worker-mothership"))
+        #expect(HumanTaskLinks.link("claylib-task://run/ab12/rm%20-rf") == nil)
+        #expect(HumanTaskLinks.link("claylib-task://attach/a;b") == nil)
+        #expect(HumanTaskLinks.link("claylib-task://attach/a%20b") == nil)
+        #expect(HumanTaskLinks.link("claylib-task://exec/ab12") == nil)
+        #expect(HumanTaskLinks.link("https://run/ab12") == nil)
     }
 }
