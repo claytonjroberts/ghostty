@@ -53,26 +53,21 @@ private struct HumanTaskCard: View {
                         .foregroundStyle(task.blocking ? .red : .secondary)
                 }
                 if !task.requester.isEmpty { Label(task.requester, systemImage: "person.crop.circle") }
+                if !task.tool.isEmpty { Label(task.tool, systemImage: "wrench.and.screwdriver") }
                 if let host = task.host, !host.isEmpty { Label(host, systemImage: "server.rack") }
                 Text(Date(timeIntervalSince1970: task.created).formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-            if !task.details.isEmpty {
+            if task.kind == .permission {
+                call
+            } else if !task.details.isEmpty {
                 Text(task.details)
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
-            if !task.command.isEmpty {
-                Text(task.command)
-                    .font(.system(.callout, design: .monospaced))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.07)))
-            }
+            if !task.command.isEmpty { code(Text(task.command)) }
             if let status = task.exitStatus { result(status) }
             if !task.rejection.isEmpty {
                 Label("Rejected: \(task.rejection)", systemImage: "hand.raised.fill")
@@ -80,7 +75,11 @@ private struct HumanTaskCard: View {
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if task.kind == .question { question } else { noteForSession }
+            switch task.kind {
+            case .question: question
+            case .permission: permission
+            case .action, .info: noteForSession
+            }
             HStack {
                 Spacer()
                 if task.kind == .action, !task.command.isEmpty, !task.done {
@@ -112,6 +111,48 @@ private struct HumanTaskCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.07)))
+        }
+    }
+
+    @ViewBuilder
+    private var call: some View {
+        switch task.call {
+        case .command(let command, let description):
+            code(Text(command))
+            if !description.isEmpty { Text(description).font(.callout).foregroundStyle(.secondary) }
+        case .diff(let path, let removed, let added):
+            Text(path).font(.callout).textSelection(.enabled)
+            let lines = removed.map { Text("- \($0)").foregroundColor(.red) } + added.map { Text("+ \($0)").foregroundColor(.green) }
+            code(lines.dropFirst().reduce(lines.first ?? Text("")) { $0 + Text("\n") + $1 })
+        case .path(let path):
+            Text(path).font(.callout).textSelection(.enabled)
+        case .raw(let text):
+            code(Text(text))
+        }
+    }
+
+    private func code(_ text: Text) -> some View {
+        text
+            .font(.system(.callout, design: .monospaced))
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.07)))
+    }
+
+    /// Exactly the prompt's three answers; both allows take his passkey, so they open the page on the task.
+    @ViewBuilder
+    private var permission: some View {
+        if task.done {
+            if task.rejection.isEmpty { Text("Answered: \(task.answer)").fixedSize(horizontal: false, vertical: true) }
+        } else {
+            HStack {
+                Button("Allow once") { model.openOnPage(task) }.buttonStyle(.borderedProminent)
+                Button("Always allow for this session") { model.openOnPage(task) }
+                Spacer()
+                Button("Deny", role: .destructive) { model.answer(task, "Deny") }
+            }
         }
     }
 
