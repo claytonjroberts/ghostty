@@ -72,6 +72,21 @@ struct HumanTasksTests {
         #expect(tasks.first?.kind == .info)
     }
 
+    @Test func permissionShowsItsCallAsThePageDoes() throws {
+        func call(_ details: String) throws -> HumanTask.Call {
+            let json = try JSONSerialization.data(withJSONObject: ["id": "p", "title": "", "created": 1, "kind": "permission", "tool": "Edit", "details": details])
+            let task = try #require(HumanTask.parse([json]).first)
+            #expect(task.kind == .permission && task.tool == "Edit")
+            return task.call
+        }
+        #expect(try call(#"{"command": "ls", "description": "List"}"#) == .command("ls", description: "List"))
+        #expect(try call(#"{"file_path": "/a", "old_string": "x\ny", "new_string": "z"}"#) == .diff(path: "/a", removed: ["x", "y"], added: ["z"]))
+        #expect(try call(#"{"file_path": "/a", "content": "new"}"#) == .diff(path: "/a", removed: [], added: ["new"]))
+        #expect(try call(#"{"path": "/d"}"#) == .path("/d"))
+        #expect(try call(#"{"url": "u"}"#) == .raw("{\n  \"url\" : \"u\"\n}"))
+        #expect(try call(#"{"command": "cut off"#) == .raw(#"{"command": "cut off"#))
+    }
+
     @Test func linksNameOnlyATaskOrAnAgent() {
         #expect(HumanTaskLinks.link("claylib-task://run/ab12") == .run("ab12"))
         #expect(HumanTaskLinks.link("claylib-task://attach/worker-mothership") == .attach("worker-mothership"))

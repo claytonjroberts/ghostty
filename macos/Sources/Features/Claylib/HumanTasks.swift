@@ -4,7 +4,7 @@ import Foundation
 /// One task file from agent-dispatcher's human-task folder: something a Claude session needs
 /// Clayton to do, or a question that can wait. agent_dispatcher/human_tasks.py owns the format.
 struct HumanTask: Decodable, Identifiable, Equatable {
-    enum Kind: String, Decodable { case action, question, info }
+    enum Kind: String, Decodable { case action, question, info, permission }
 
     let id: String
     let title: String
@@ -24,6 +24,7 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     private let blockingValue: Bool?
     private let noteValue: String?
     private let rejectionValue: String?
+    private let toolValue: String?
 
     var kind: Kind { kindValue ?? .action }
     var command: String { commandValue ?? "" }
@@ -42,6 +43,33 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     var note: String { noteValue ?? "" }
     /// Why Clayton declined it; such a task is also done.
     var rejection: String { rejectionValue ?? "" }
+    /// A permission prompt's tool; its input is the JSON in `details`.
+    var tool: String { toolValue ?? "" }
+
+    /// What a permission prompt wants to run, as the page's callPreview() shows it.
+    enum Call: Equatable {
+        case command(String, description: String)
+        /// An edit's lines out and in; a write has only lines in.
+        case diff(path: String, removed: [String], added: [String])
+        case path(String)
+        /// Input that isn't JSON (cut off at 4000 characters, or a plan), or a tool with none of the above.
+        case raw(String)
+    }
+
+    var call: Call {
+        guard let data = details.data(using: .utf8),
+              let input = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return .raw(details) }
+        let path = (input["file_path"] ?? input["notebook_path"] ?? input["path"]) as? String
+        let lines = { (text: String) in text.components(separatedBy: "\n") }
+        if let command = input["command"] as? String { return .command(command, description: input["description"] as? String ?? "") }
+        if let old = input["old_string"] as? String {
+            return .diff(path: path ?? "", removed: lines(old), added: lines(input["new_string"] as? String ?? ""))
+        }
+        if let content = input["content"] as? String { return .diff(path: path ?? "", removed: [], added: lines(content)) }
+        if let path { return .path(path) }
+        let pretty = try? JSONSerialization.data(withJSONObject: input, options: [.prettyPrinted, .sortedKeys])
+        return .raw(pretty.flatMap { String(data: $0, encoding: .utf8) } ?? details)
+    }
 
     func outputTail(lines: Int) -> String {
         output.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines).joined(separator: "\n")
@@ -51,7 +79,7 @@ struct HumanTask: Decodable, Identifiable, Equatable {
         case id, title, created, host
         case kindValue = "kind", commandValue = "command", optionsValue = "options", answerValue = "answer"
         case doneAt = "done_at", exitStatus = "exit_status", outputValue = "output"
-        case requesterValue = "requester", detailsValue = "details", blockingValue = "blocking", noteValue = "note", rejectionValue = "rejection"
+        case requesterValue = "requester", detailsValue = "details", blockingValue = "blocking", noteValue = "note", rejectionValue = "rejection", toolValue = "tool"
     }
 
     /// The tasks in these files, blockers first, then oldest first; a file that doesn't parse is skipped.
@@ -82,7 +110,8 @@ final class HumanTasks: ObservableObject {
     }
 
     var openActions: [HumanTask] { tasks.filter { !$0.done && $0.kind == .action } }
-    var openQuestions: [HumanTask] { tasks.filter { !$0.done && $0.kind == .question } }
+    /// Permission prompts list with the questions: both wait on an answer, not on Done.
+    var openQuestions: [HumanTask] { tasks.filter { !$0.done && ($0.kind == .question || $0.kind == .permission) } }
     var finished: [HumanTask] { tasks.filter(\.done) }
 
     private func reload() {
@@ -108,6 +137,17 @@ final class HumanTasks: ObservableObject {
     func answer(_ task: HumanTask, _ text: String) { Task { _ = await Self.cli(["answer", task.id, text]) } }
     func note(_ task: HumanTask, _ text: String) { Task { _ = await Self.cli(["note", task.id, text]) } }
     func reject(_ task: HumanTask, _ reason: String) { Task { _ = await Self.cli(["reject", task.id, reason]) } }
+
+    /// Mirrors router_url(DISPATCHER_URL) in agent_dispatcher/protocol.py.
+    static let page = "https://mothership.tailb4794d.ts.net"
+
+    /// Opens the dispatcher page on this task: allowing a permission prompt takes Clayton's passkey,
+    /// and the router serves the passkey challenge to the page only.
+    func openOnPage(_ task: HumanTask) {
+        var url = URLComponents(string: Self.page)
+        url?.queryItems = [URLQueryItem(name: "task", value: task.id)]
+        if let url = url?.url { NSWorkspace.shared.open(url) }
+    }
 
     /// Starts the task's command in its own tmux session and opens a tab attached to it.
     func run(_ task: HumanTask) {
