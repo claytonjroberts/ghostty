@@ -2,18 +2,9 @@ import Sparkle
 import Cocoa
 
 extension UpdateDriver: SPUUpdaterDelegate {
+    /// Claylib: the fork's own builds (claylib-release.yml), whatever `auto-update-channel` says.
     func feedURLString(for updater: SPUUpdater) -> String? {
-        guard let appDelegate = NSApplication.shared.delegate as? AppDelegate else {
-            return nil
-        }
-
-        // Sparkle supports a native concept of "channels" but it requires that
-        // you share a single appcast file. We don't want to do that so we
-        // do this instead.
-        switch appDelegate.ghostty.config.autoUpdateChannel {
-        case .tip: return "https://tip.files.ghostty.org/appcast.xml"
-        case .stable: return "https://release.files.ghostty.org/appcast.xml"
-        }
+        "https://github.com/claytonjroberts/ghostty/releases/latest/download/appcast.xml"
     }
 
     /// Called when an update is scheduled to install silently,

@@ -1,0 +1,103 @@
+on:
+  push:
+    branches: [claylib]
+  workflow_dispatch: {}
+
+name: Claylib Release
+
+# Every push to claylib becomes a notarized GitHub release whose appcast.xml Sparkle reads
+# (UpdateDelegate) and whose Ghostty.zip the claytonjroberts/tap cask installs. Runs only on
+# Mothership, whose login keychain holds the Developer ID, notarytool profile and Sparkle key
+# (dist/macos/claylib-mothership-setup.sh), so the workflow needs no secrets.
+
+concurrency:
+  group: claylib-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.repository == 'claytonjroberts/ghostty'
+    runs-on: [self-hosted, mothership]
+    timeout-minutes: 60
+    env:
+      APP: macos/build/Release/Ghostty.app
+      IDENTITY: "Developer ID Application: Clayton Roberts (GMLPGJ9UVD)"
+      SPARKLE_ACCOUNT: claylib-ghostty
+      # Outside the checkout, which is cleaned each run.
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/../zig-cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The build number is the commit count.
+          fetch-depth: 0
+
+      - name: Version
+        run: |
+          echo "BUILD=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          echo "COMMIT=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          echo "SPARKLE=$HOME/.local/share/sparkle/bin" >> "$GITHUB_ENV"
+
+      - name: Build GhosttyKit
+        run: zig build -Doptimize=ReleaseFast -Demit-macos-app=false
+
+      - name: Build Ghostty.app
+        run: cd macos && xcodebuild -target Ghostty -configuration Release
+
+      - name: Update Info.plist
+        run: |
+          plist="$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :GhosttyCommit $COMMIT" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $COMMIT" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $("$SPARKLE/generate_keys" --account "$SPARKLE_ACCOUNT" -p)" "$plist"
+          /usr/libexec/PlistBuddy -c "Delete :SUEnableAutomaticChecks" "$plist"
+
+      - name: Codesign
+        run: |
+          sparkle="$APP/Contents/Frameworks/Sparkle.framework"
+          for part in "$sparkle/Versions/B/XPCServices/Downloader.xpc" "$sparkle/Versions/B/XPCServices/Installer.xpc" \
+            "$sparkle/Versions/B/Autoupdate" "$sparkle/Versions/B/Updater.app" "$sparkle" \
+            "$APP/Contents/PlugIns/DockTilePlugin.plugin"; do
+            codesign -f -s "$IDENTITY" -o runtime "$part"
+          done
+          codesign -f -s "$IDENTITY" -o runtime --entitlements macos/Ghostty.entitlements "$APP"
+
+      - name: Notarize
+        run: |
+          ditto -c -k --keepParent "$APP" Ghostty.zip
+          xcrun notarytool submit Ghostty.zip --keychain-profile claylib-notary --wait
+          xcrun stapler staple "$APP"
+          rm Ghostty.zip
+          ditto -c -k --keepParent "$APP" Ghostty.zip
+
+      - name: Appcast
+        run: |
+          url="https://github.com/${{ github.repository }}/releases/download/claylib-$BUILD/Ghostty.zip"
+          cat > appcast.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <item>
+                <title>claylib $BUILD</title>
+                <pubDate>$(date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+                <sparkle:version>$BUILD</sparkle:version>
+                <sparkle:shortVersionString>$COMMIT</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion>
+                <enclosure url="$url" type="application/octet-stream" $("$SPARKLE/sign_update" --account "$SPARKLE_ACCOUNT" Ghostty.zip)/>
+              </item>
+            </channel>
+          </rss>
+          EOF
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "claylib-$BUILD" Ghostty.zip appcast.xml --latest \
+            --target "$GITHUB_SHA" --title "claylib $BUILD ($COMMIT)" --notes "Build of $GITHUB_SHA."
+          # Keep the newest five.
+          gh release list --exclude-drafts --limit 100 --json tagName -q '.[].tagName' \
+            | grep '^claylib-' | tail -n +6 | xargs -n1 -I{} gh release delete {} --cleanup-tag -y
