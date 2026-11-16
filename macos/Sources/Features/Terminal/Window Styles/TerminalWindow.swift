@@ -84,6 +84,11 @@ class TerminalWindow: NSWindow {
         didSet { if tabRepo != oldValue { ClaylibTabs.shared.changed() } }
     }
 
+    /// Claylib: the machine this tab's focused terminal is on (HostStatus), from its status bar.
+    var tabHost: String? {
+        didSet { if tabHost != oldValue { ClaylibTabs.shared.changed() } }
+    }
+
     // MARK: NSWindow Overrides
 
     override var toolbar: NSToolbar? {

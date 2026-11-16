@@ -4,6 +4,8 @@ import SwiftUI
 /// PR of its branch on the left; the machine's stats, drawn like the Stats app's menu bar
 /// widgets, and the keep-awake cup on the right.
 struct ClaylibStatusBar: View {
+    /// Told the host found, for the tab strip.
+    let window: TerminalWindow?
     /// The focused terminal's tty and directory, for its Claude account and PR.
     let tty: String?
     let dir: String?
@@ -51,6 +53,7 @@ struct ClaylibStatusBar: View {
             guard let tty else { return }
             while !Task.isCancelled {
                 host = await HostStatus.check(tty: tty)
+                window?.tabHost = host
                 try? await Task.sleep(for: .seconds(3))
             }
         }
