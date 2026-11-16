@@ -58,3 +58,5 @@ src/font/nerd_font_attributes.zig linguist-generated=true
 src/font/nerd_font_codepoint_tables.py linguist-generated=true
 src/font/res/** linguist-vendored
 src/terminal/res/** linguist-vendored
+# Claylib: merges from upstream keep the fork's update feed (needs: git config merge.ours.driver true).
+macos/Sources/Features/Update/UpdateDelegate.swift merge=ours

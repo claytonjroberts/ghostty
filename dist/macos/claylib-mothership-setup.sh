@@ -37,4 +37,6 @@ if [ ! -f "$runner/.runner" ]; then
     ./config.sh --unattended --url "https://github.com/$repo" --token "$token" --name mothership --labels mothership
     ./svc.sh install && ./svc.sh start
 fi
+# .gitattributes' merge=ours (the fork's update feed) needs its driver in each clone.
+git -C ~/repos/ghostty config merge.ours.driver true
 echo "Mothership is ready to build claylib releases."
