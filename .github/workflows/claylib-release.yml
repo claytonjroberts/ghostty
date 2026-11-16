@@ -7,8 +7,9 @@ name: Claylib Release
 
 # Every push to claylib becomes a notarized GitHub release whose appcast.xml Sparkle reads
 # (UpdateDelegate) and whose Ghostty.zip the claytonjroberts/tap cask installs. Runs only on
-# Mothership, whose login keychain holds the Developer ID, notarytool profile and Sparkle key
-# (dist/macos/claylib-mothership-setup.sh), so the workflow needs no secrets.
+# Mothership, which holds the Sparkle key and, if imported, the Developer ID and notarytool
+# profile (dist/macos/claylib-mothership-setup.sh), so the workflow needs no secrets. Without
+# the Developer ID it signs ad-hoc and skips notarizing.
 
 concurrency:
   group: claylib-release
@@ -25,7 +26,9 @@ jobs:
     env:
       APP: macos/build/Release/Ghostty.app
       IDENTITY: "Developer ID Application: Clayton Roberts (GMLPGJ9UVD)"
-      SPARKLE_ACCOUNT: claylib-ghostty
+      # Kept in a file, not the keychain: a locked keychain can't be read headless.
+      SPARKLE_KEY: /Users/clayton/.config/claylib/sparkle-ed25519.pem
+      OPENSSL: /opt/homebrew/bin/openssl
       # Outside the checkout, which is cleaned each run.
       ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/../zig-cache
     steps:
@@ -52,11 +55,15 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :GhosttyCommit $COMMIT" "$plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $COMMIT" "$plist"
-          /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $("$SPARKLE/generate_keys" --account "$SPARKLE_ACCOUNT" -p)" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $("$OPENSSL" pkey -in "$SPARKLE_KEY" -pubout -outform DER | tail -c 32 | base64)" "$plist"
           /usr/libexec/PlistBuddy -c "Delete :SUEnableAutomaticChecks" "$plist"
 
       - name: Codesign
         run: |
+          if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+            IDENTITY=-
+            echo "IDENTITY=-" >> "$GITHUB_ENV"
+          fi
           sparkle="$APP/Contents/Frameworks/Sparkle.framework"
           for part in "$sparkle/Versions/B/XPCServices/Downloader.xpc" "$sparkle/Versions/B/XPCServices/Installer.xpc" \
             "$sparkle/Versions/B/Autoupdate" "$sparkle/Versions/B/Updater.app" "$sparkle" \
@@ -67,6 +74,7 @@ jobs:
 
       - name: Notarize
         run: |
+          if [ "$IDENTITY" = - ]; then ditto -c -k --keepParent "$APP" Ghostty.zip; exit 0; fi
           ditto -c -k --keepParent "$APP" Ghostty.zip
           xcrun notarytool submit Ghostty.zip --keychain-profile claylib-notary --wait
           xcrun stapler staple "$APP"
@@ -86,7 +94,7 @@ jobs:
                 <sparkle:version>$BUILD</sparkle:version>
                 <sparkle:shortVersionString>$COMMIT</sparkle:shortVersionString>
                 <sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion>
-                <enclosure url="$url" type="application/octet-stream" $("$SPARKLE/sign_update" --account "$SPARKLE_ACCOUNT" Ghostty.zip)/>
+                <enclosure url="$url" type="application/octet-stream" $("$SPARKLE/sign_update" --ed-key-file <("$OPENSSL" pkey -in "$SPARKLE_KEY" -outform DER | tail -c 32 | base64) Ghostty.zip)/>
               </item>
             </channel>
           </rss>
