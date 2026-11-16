@@ -111,6 +111,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
 
                     // Claylib: the Claude account, branch PR, machine stats and keep-awake under the terminals.
                     ClaylibStatusBar(
+                        window: lastFocusedSurface?.value?.window as? TerminalWindow,
                         tty: lastFocusedSurface?.value?.surfaceModel?.ttyName,
                         dir: lastFocusedSurface?.value?.pwd,
                         colors: StatColors(palette: ghostty.config.palette))

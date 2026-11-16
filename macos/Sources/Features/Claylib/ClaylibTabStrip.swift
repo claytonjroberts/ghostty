@@ -49,6 +49,8 @@ struct StripTab: Equatable {
     let name: String
     let key: String
     let active: Bool
+    /// The other machine the tab is ssh'd to; nil on this Mac.
+    let remote: String?
 
     @MainActor
     init(window: NSWindow) {
@@ -63,6 +65,7 @@ struct StripTab: Equatable {
         name = terminal?.tabName.isEmpty == false ? terminal?.tabName ?? "" : window.title
         key = terminal?.keyEquivalent ?? ""
         active = window.tabGroup?.selectedWindow === window
+        remote = terminal?.tabHost.flatMap { $0 == HostStatus.local ? nil : $0 }
     }
 }
 
@@ -117,7 +120,7 @@ struct ClaylibTabStrip: View {
                     ForEach(Array(runs(rows[row], by: \.repo).enumerated()), id: \.offset) { index, piece in
                         let group = groups.first { $0.contains(piece[0].window) } ?? piece.map(\.window)
                         let color = Color(piece[0].color ?? .systemGray)
-                        GroupLabel(repo: piece[0].repo, color: piece[0].color ?? .systemGray)
+                        GroupLabel(repo: piece[0].repo, color: piece[0].color ?? .systemGray, remote: piece.compactMap(\.remote).first)
                             .onDrag { NSItemProvider(object: Self.payload("group", group) as NSString) }
                             .modifier(DropTarget { drop($0, onto: group, group: group, order: windows) })
                             .padding(.leading, index == 0 ? 0 : 6)
@@ -266,11 +269,14 @@ func readable(on color: NSColor) -> NSColor {
 private struct GroupLabel: View {
     let repo: String
     let color: NSColor
+    /// A machine one of the group's tabs is ssh'd to, drawn as the host chip draws it.
+    let remote: String?
 
     var body: some View {
         HStack(spacing: 3) {
             if repo == TabRepo.home { Image(systemName: "house.fill") }
             if repo == TabRepo.humanTasks.name { Image(systemName: "flag.fill") }
+            if let remote { Image(systemName: "network").help("On \(remote)") }
             Text(repo.isEmpty ? "other" : repo)
         }
             .font(.system(size: 11, weight: .semibold))
