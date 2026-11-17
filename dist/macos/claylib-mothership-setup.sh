@@ -34,7 +34,14 @@ if [ ! -f "$kc" ]; then
 fi
 security unlock-keychain -p "$(cat "$pw")" "$kc"
 
-if ! security find-identity -v -p codesigning "$kc" | grep -q "$identity"; then
+# The .p12 holds only the leaf: without its issuer find-identity -v hides the identity.
+if ! security find-certificate -c "Developer ID Certification Authority" >/dev/null 2>&1; then
+    ca=$(mktemp)
+    curl -fsSL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer -o "$ca"
+    security import "$ca" -k "$kc" && rm "$ca"
+fi
+
+if ! security find-certificate -c "$identity" "$kc" >/dev/null 2>&1; then
     p12=$(mktemp) && trap 'rm -f "$p12"' EXIT
     op read "$cert/MACOS_CERTIFICATE" | base64 -d > "$p12"
     security import "$p12" -f pkcs12 -k "$kc" -P "$(op read "$cert/MACOS_CERTIFICATE_PWD")" -T /usr/bin/codesign
