@@ -1,11 +1,11 @@
 #!/bin/bash
 # One-time Mothership setup for .github/workflows/claylib-release.yml, run there by hand: the
 # Sparkle key, the Developer ID and notarytool credentials, and the self-hosted runner as a
-# LaunchAgent. Rerunnable: each step skips once done.
-# Usage: dist/macos/claylib-mothership-setup.sh DeveloperID.p12  (exported from Automatron's Keychain Access)
+# LaunchAgent. Rerunnable: each step skips once done. Needs `op` signed in (1Password app unlocked).
 set -euo pipefail
 repo=claytonjroberts/ghostty
 identity="Developer ID Application: Clayton Roberts (GMLPGJ9UVD)"
+cert=op://Shnipper/rcsi27tzk3wlcgzctf3jxv674u # "Apple Developer Cert", shared with Shnipper's CI
 
 sparkle=~/.local/share/sparkle
 if [ ! -x "$sparkle/bin/sign_update" ]; then
@@ -35,14 +35,16 @@ fi
 security unlock-keychain -p "$(cat "$pw")" "$kc"
 
 if ! security find-identity -v -p codesigning "$kc" | grep -q "$identity"; then
-    security import "${1:?pass the Developer ID .p12 exported from Automatron}" -k "$kc" -T /usr/bin/codesign
+    p12=$(mktemp) && trap 'rm -f "$p12"' EXIT
+    op read "$cert/MACOS_CERTIFICATE" | base64 -d > "$p12"
+    security import "$p12" -f pkcs12 -k "$kc" -P "$(op read "$cert/MACOS_CERTIFICATE_PWD")" -T /usr/bin/codesign
     # Lets codesign use the key without a prompt, which a headless runner can't answer.
     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$(cat "$pw")" "$kc" >/dev/null
 fi
 
 if ! xcrun notarytool history --keychain-profile claylib-notary --keychain "$kc" >/dev/null 2>&1; then
-    # Prompts for the Apple ID and an app-specific password (appleid.apple.com).
-    xcrun notarytool store-credentials claylib-notary --team-id GMLPGJ9UVD --keychain "$kc"
+    xcrun notarytool store-credentials claylib-notary --keychain "$kc" --team-id GMLPGJ9UVD \
+        --apple-id "$(op read "$cert/MACOS_NOTARY_APPLE_ID")" --password "$(op read "$cert/MACOS_NOTARY_PASSWORD")"
 fi
 
 runner=~/actions-runner

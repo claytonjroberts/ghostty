@@ -64,7 +64,7 @@ jobs:
           # Ad-hoc builds are quarantined by Gatekeeper on install ("Apple could not verify"), so no fallback.
           security unlock-keychain -p "$(cat "$KEYCHAIN_PASS")" "$KEYCHAIN"
           security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "$IDENTITY" \
-            || { echo "::error::No '$IDENTITY' on Mothership: run dist/macos/claylib-mothership-setup.sh <p12>"; exit 1; }
+            || { echo "::error::No '$IDENTITY' on Mothership: run dist/macos/claylib-mothership-setup.sh"; exit 1; }
           sparkle="$APP/Contents/Frameworks/Sparkle.framework"
           for part in "$sparkle/Versions/B/XPCServices/Downloader.xpc" "$sparkle/Versions/B/XPCServices/Installer.xpc" \
             "$sparkle/Versions/B/Autoupdate" "$sparkle/Versions/B/Updater.app" "$sparkle" \
