@@ -29,6 +29,8 @@ if [ ! -f "$kc" ]; then
     (umask 077 && /opt/homebrew/bin/openssl rand -hex 24 > "$pw")
     security create-keychain -p "$(cat "$pw")" "$kc"
     security set-keychain-settings "$kc" # no auto-lock
+    # On the search list so trust evaluation finds the Developer ID intermediate, or find-identity -v hides it.
+    security list-keychains -d user -s "$kc" $(security list-keychains -d user | xargs)
 fi
 security unlock-keychain -p "$(cat "$pw")" "$kc"
 
