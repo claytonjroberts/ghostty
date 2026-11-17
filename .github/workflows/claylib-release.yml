@@ -60,17 +60,20 @@ jobs:
 
       - name: Codesign
         run: |
+          runtime="-o runtime"
           if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
             IDENTITY=-
             echo "IDENTITY=-" >> "$GITHUB_ENV"
+            # Hardened runtime's library validation rejects ad-hoc Sparkle (no Team ID): crash at launch.
+            runtime=
           fi
           sparkle="$APP/Contents/Frameworks/Sparkle.framework"
           for part in "$sparkle/Versions/B/XPCServices/Downloader.xpc" "$sparkle/Versions/B/XPCServices/Installer.xpc" \
             "$sparkle/Versions/B/Autoupdate" "$sparkle/Versions/B/Updater.app" "$sparkle" \
             "$APP/Contents/PlugIns/DockTilePlugin.plugin"; do
-            codesign -f -s "$IDENTITY" -o runtime "$part"
+            codesign -f -s "$IDENTITY" $runtime "$part"
           done
-          codesign -f -s "$IDENTITY" -o runtime --entitlements macos/Ghostty.entitlements "$APP"
+          codesign -f -s "$IDENTITY" $runtime --entitlements macos/Ghostty.entitlements "$APP"
 
       - name: Notarize
         run: |
