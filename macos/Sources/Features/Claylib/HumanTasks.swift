@@ -1,8 +1,8 @@
 import AppKit
 import Foundation
 
-/// One task file from agent-dispatcher's human-task folder: something a Claude session needs
-/// Clayton to do, or a question that can wait. agent_dispatcher/human_tasks.py owns the format.
+/// One task file from summoner's human-task folder: something a Claude session needs
+/// Clayton to do, or a question that can wait. summoner/human_tasks owns the format.
 struct HumanTask: Decodable, Identifiable, Equatable {
     enum Kind: String, Decodable { case action, question, info, permission }
 
@@ -89,7 +89,7 @@ struct HumanTask: Decodable, Identifiable, Equatable {
     }
 }
 
-/// The human-task folder, kept current by watching it. Changes go through agent-dispatcher's
+/// The human-task folder, kept current by watching it. Changes go through summoner's
 /// `human-task` CLI, so the fork never writes the format or reimplements the 72-hour prune.
 @MainActor
 final class HumanTasks: ObservableObject {
@@ -98,8 +98,10 @@ final class HumanTasks: ObservableObject {
     @Published private(set) var tasks: [HumanTask] = []
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path
-    /// Mirrors TASKS_DIR in agent_dispatcher/human_tasks.py.
-    static let dir = home + "/.local/state/agent-dispatcher/human-tasks"
+    /// Mirrors TASKS_DIR in summoner/human_tasks/constants.py.
+    static let dir = home + "/.local/state/summoner/human-tasks"
+    /// The deployed summoner checkout (the shared dev one lags the rename) whose `human-task` CLI this runs.
+    static let project = home + "/repos/summoner-deploy"
     private var watcher: FileWatcher?
 
     private init() {
@@ -126,7 +128,7 @@ final class HumanTasks: ObservableObject {
         await Task.detached {
             TabRepo.run(
                 "/opt/homebrew/bin/uv",
-                ["run", "--quiet", "--directory", home + "/repos/agent-dispatcher", "human-task"] + args)
+                ["run", "--quiet", "--directory", project, "human-task"] + args)
         }.value
     }
 
@@ -138,7 +140,7 @@ final class HumanTasks: ObservableObject {
     func note(_ task: HumanTask, _ text: String) { Task { _ = await Self.cli(["note", task.id, text]) } }
     func reject(_ task: HumanTask, _ reason: String) { Task { _ = await Self.cli(["reject", task.id, reason]) } }
 
-    /// Mirrors router_url(DISPATCHER_URL) in agent_dispatcher/protocol.py.
+    /// Mirrors router_url(DISPATCHER_URL) in summoner/protocol.py.
     static let page = "https://mothership.tailb4794d.ts.net"
 
     /// Opens the dispatcher page on this task: allowing a permission prompt takes Clayton's passkey,
