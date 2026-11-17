@@ -1,11 +1,11 @@
 #!/bin/bash
 # One-time Mothership setup for .github/workflows/claylib-release.yml, run there by hand: the
-# Sparkle key, optionally the Developer ID and notarytool credentials (else builds are ad-hoc
-# signed), and the self-hosted runner as a LaunchAgent. Rerunnable: each step skips once done.
-# Usage: dist/macos/claylib-mothership-setup.sh [DeveloperID.p12]
+# Sparkle key, the Developer ID and notarytool credentials, and the self-hosted runner as a
+# LaunchAgent. Rerunnable: each step skips once done. Needs `op` signed in (1Password app unlocked).
 set -euo pipefail
 repo=claytonjroberts/ghostty
 identity="Developer ID Application: Clayton Roberts (GMLPGJ9UVD)"
+cert=op://Shnipper/rcsi27tzk3wlcgzctf3jxv674u # "Apple Developer Cert", shared with Shnipper's CI
 
 sparkle=~/.local/share/sparkle
 if [ ! -x "$sparkle/bin/sign_update" ]; then
@@ -21,21 +21,30 @@ if [ ! -f "$key" ]; then
     (umask 077 && /opt/homebrew/bin/openssl genpkey -algorithm ed25519 -out "$key")
 fi
 
-if ! security find-identity -v -p codesigning | grep -q "$identity"; then
-    if [ -n "${1:-}" ]; then
-        security unlock-keychain ~/Library/Keychains/login.keychain-db
-        # -T: codesign may use the key without a prompt, which a headless runner can't answer.
-        security import "$1" -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
-    else
-        echo "No Developer ID: builds will be ad-hoc signed. Rerun with its .p12 to notarize."
-    fi
+# Its own keychain, unlocked by the workflow with a password from a file: the login keychain is
+# locked over ssh and to the runner.
+kc=~/Library/Keychains/claylib-signing.keychain-db
+pw=~/.config/claylib/signing-keychain.pass
+if [ ! -f "$kc" ]; then
+    (umask 077 && /opt/homebrew/bin/openssl rand -hex 24 > "$pw")
+    security create-keychain -p "$(cat "$pw")" "$kc"
+    security set-keychain-settings "$kc" # no auto-lock
+    # On the search list so trust evaluation finds the Developer ID intermediate, or find-identity -v hides it.
+    security list-keychains -d user -s "$kc" $(security list-keychains -d user | xargs)
+fi
+security unlock-keychain -p "$(cat "$pw")" "$kc"
+
+if ! security find-identity -v -p codesigning "$kc" | grep -q "$identity"; then
+    p12=$(mktemp) && trap 'rm -f "$p12"' EXIT
+    op read "$cert/MACOS_CERTIFICATE" | base64 -d > "$p12"
+    security import "$p12" -f pkcs12 -k "$kc" -P "$(op read "$cert/MACOS_CERTIFICATE_PWD")" -T /usr/bin/codesign
+    # Lets codesign use the key without a prompt, which a headless runner can't answer.
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$(cat "$pw")" "$kc" >/dev/null
 fi
 
-if security find-identity -v -p codesigning | grep -q "$identity" \
-    && ! xcrun notarytool history --keychain-profile claylib-notary >/dev/null 2>&1; then
-    security unlock-keychain ~/Library/Keychains/login.keychain-db
-    # Prompts for the Apple ID and an app-specific password (appleid.apple.com).
-    xcrun notarytool store-credentials claylib-notary --team-id GMLPGJ9UVD
+if ! xcrun notarytool history --keychain-profile claylib-notary --keychain "$kc" >/dev/null 2>&1; then
+    xcrun notarytool store-credentials claylib-notary --keychain "$kc" --team-id GMLPGJ9UVD \
+        --apple-id "$(op read "$cert/MACOS_NOTARY_APPLE_ID")" --password "$(op read "$cert/MACOS_NOTARY_PASSWORD")"
 fi
 
 runner=~/actions-runner
