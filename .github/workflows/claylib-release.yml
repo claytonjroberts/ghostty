@@ -7,9 +7,8 @@ name: Claylib Release
 
 # Every push to main-clayton becomes a notarized GitHub release whose appcast.xml Sparkle reads
 # (UpdateDelegate) and whose Ghostty.zip the claytonjroberts/tap cask installs. Runs only on
-# Mothership, which holds the Sparkle key and, if imported, the Developer ID and notarytool
-# profile (dist/macos/claylib-mothership-setup.sh), so the workflow needs no secrets. Without
-# the Developer ID it signs ad-hoc and skips notarizing.
+# Mothership, which holds the Sparkle key, Developer ID and notarytool profile
+# (dist/macos/claylib-mothership-setup.sh), so the workflow needs no secrets.
 
 concurrency:
   group: claylib-release
@@ -26,6 +25,8 @@ jobs:
     env:
       APP: macos/build/Release/Ghostty.app
       IDENTITY: "Developer ID Application: Clayton Roberts (GMLPGJ9UVD)"
+      KEYCHAIN: /Users/clayton/Library/Keychains/claylib-signing.keychain-db
+      KEYCHAIN_PASS: /Users/clayton/.config/claylib/signing-keychain.pass
       # Kept in a file, not the keychain: a locked keychain can't be read headless.
       SPARKLE_KEY: /Users/clayton/.config/claylib/sparkle-ed25519.pem
       OPENSSL: /opt/homebrew/bin/openssl
@@ -60,26 +61,22 @@ jobs:
 
       - name: Codesign
         run: |
-          runtime="-o runtime"
-          if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
-            IDENTITY=-
-            echo "IDENTITY=-" >> "$GITHUB_ENV"
-            # Hardened runtime's library validation rejects ad-hoc Sparkle (no Team ID): crash at launch.
-            runtime=
-          fi
+          # Ad-hoc builds are quarantined by Gatekeeper on install ("Apple could not verify"), so no fallback.
+          security unlock-keychain -p "$(cat "$KEYCHAIN_PASS")" "$KEYCHAIN"
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "$IDENTITY" \
+            || { echo "::error::No '$IDENTITY' on Mothership: run dist/macos/claylib-mothership-setup.sh <p12>"; exit 1; }
           sparkle="$APP/Contents/Frameworks/Sparkle.framework"
           for part in "$sparkle/Versions/B/XPCServices/Downloader.xpc" "$sparkle/Versions/B/XPCServices/Installer.xpc" \
             "$sparkle/Versions/B/Autoupdate" "$sparkle/Versions/B/Updater.app" "$sparkle" \
             "$APP/Contents/PlugIns/DockTilePlugin.plugin"; do
-            codesign -f -s "$IDENTITY" $runtime "$part"
+            codesign -f --keychain "$KEYCHAIN" -s "$IDENTITY" -o runtime "$part"
           done
-          codesign -f -s "$IDENTITY" $runtime --entitlements macos/Ghostty.entitlements "$APP"
+          codesign -f --keychain "$KEYCHAIN" -s "$IDENTITY" -o runtime --entitlements macos/Ghostty.entitlements "$APP"
 
       - name: Notarize
         run: |
-          if [ "$IDENTITY" = - ]; then ditto -c -k --keepParent "$APP" Ghostty.zip; exit 0; fi
           ditto -c -k --keepParent "$APP" Ghostty.zip
-          xcrun notarytool submit Ghostty.zip --keychain-profile claylib-notary --wait
+          xcrun notarytool submit Ghostty.zip --keychain-profile claylib-notary --keychain "$KEYCHAIN" --wait
           xcrun stapler staple "$APP"
           rm Ghostty.zip
           ditto -c -k --keepParent "$APP" Ghostty.zip
