@@ -96,4 +96,11 @@ struct HumanTasksTests {
         #expect(HumanTaskLinks.link("claylib-task://exec/ab12") == nil)
         #expect(HumanTaskLinks.link("https://run/ab12") == nil)
     }
+
+    /// The paths mirror the summoner repo's; both went stale once when it was renamed from agent-dispatcher.
+    @MainActor @Test func pathsPointAtTheSummonerInstall() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        #expect(HumanTasks.dir == home + "/.local/state/summoner/human-tasks")
+        #expect(HumanTasks.project == home + "/repos/summoner-deploy")
+    }
 }
