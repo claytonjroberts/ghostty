@@ -1,11 +1,11 @@
 on:
   push:
-    branches: [claylib]
+    branches: [main-clayton]
   workflow_dispatch: {}
 
 name: Claylib Release
 
-# Every push to claylib becomes a notarized GitHub release whose appcast.xml Sparkle reads
+# Every push to main-clayton becomes a notarized GitHub release whose appcast.xml Sparkle reads
 # (UpdateDelegate) and whose Ghostty.zip the claytonjroberts/tap cask installs. Runs only on
 # Mothership, which holds the Sparkle key and, if imported, the Developer ID and notarytool
 # profile (dist/macos/claylib-mothership-setup.sh), so the workflow needs no secrets. Without
