@@ -228,7 +228,7 @@ class AppDelegate: NSObject,
         ])
 
         // Claylib: the web UI's "Open in terminal" links; before launch ends, to catch one that launched us.
-        HumanTaskLinks.shared.install()
+        AgentLinks.shared.install()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -260,7 +260,7 @@ class AppDelegate: NSObject,
 
         // Claylib: dock badge, bounce and jump for Claude sessions that need you.
         ClaudeAttention.shared.install()
-        // Claylib: the menu bar count and list of terminals and human tasks.
+        // Claylib: the menu bar count and list of terminals.
         ClaylibMenuBar.shared.install()
         // Claylib: reopen the Claude sessions open when Ghostty last quit.
         OpenSessions.shared.install()
