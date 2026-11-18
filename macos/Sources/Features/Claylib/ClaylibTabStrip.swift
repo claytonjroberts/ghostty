@@ -93,8 +93,8 @@ func wrapRows<T>(_ groups: [[T]], perRow: Int) -> [[T]] {
 /// Safari style: each repo's label in its color, then its tabs underlined in that color. The
 /// selected tab is filled with that color. A tab shows its Claude status and its name, with its
 /// key and billing account in its tooltip; a tab running Claude is
-/// outlined in its /color. The + after a group opens a tab beside it, in its directory, running
-/// Claude. A group that doesn't fit on a row moves to the next. Dragging a tab reorders it within its group;
+/// outlined in its /color. The + after a group opens a tab beside it, in its directory.
+/// A group that doesn't fit on a row moves to the next. Dragging a tab reorders it within its group;
 /// dragging a group's label moves the whole group.
 struct ClaylibTabStrip: View {
     /// Any terminal in the window; its window is read on every redraw, as tabs move between windows.
