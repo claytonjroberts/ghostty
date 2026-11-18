@@ -132,13 +132,13 @@ struct ClaylibTabStrip: View {
                         }
                         Button {
                             let last = piece[piece.count - 1].window
-                            newTab(from: last, in: (last.windowController as? BaseTerminalController)?.focusedSurface?.pwd, running: "claude\n")
+                            newTab(from: last, in: (last.windowController as? BaseTerminalController)?.focusedSurface?.pwd, running: nil)
                         } label: {
                             Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                                 .frame(width: 20, height: 20).contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("New tab in \(piece[0].repo.isEmpty ? "this directory" : piece[0].repo), running Claude")
+                        .help("New tab in \(piece[0].repo.isEmpty ? "this directory" : piece[0].repo)")
                     }
                     Spacer(minLength: 0)
                     if row == 0 { trailingButtons(windows) }
