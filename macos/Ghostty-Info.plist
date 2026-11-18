@@ -6,7 +6,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>Claylib human task</string>
+			<string>Claylib agent</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>claylib-task</string>
