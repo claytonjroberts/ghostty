@@ -26,7 +26,8 @@ final class ClaylibMenuBar: NSObject, ObservableObject {
         popover.contentViewController = NSHostingController(rootView: ClaylibMenuView(menu: self))
         // Tabs open and close with ClaylibTabs; Claude status changes with ClaudeSessions.
         ClaylibTabs.shared.$revision.sink { [weak self] _ in self?.updateTitle() }.store(in: &cancellables)
-        ClaudeSessions.shared.$byTTY.sink { [weak self] _ in self?.updateTitle() }.store(in: &cancellables)    }
+        ClaudeSessions.shared.$byTTY.sink { [weak self] _ in self?.updateTitle() }.store(in: &cancellables)
+    }
 
     /// Every terminal tab, window by window, in tab order.
     var tabs: [NSWindow] {
@@ -53,7 +54,8 @@ final class ClaylibMenuBar: NSObject, ObservableObject {
             popover.performClose(nil)
             return
         }
-        restorable = OpenSessions.shared.restorable        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        restorable = OpenSessions.shared.restorable
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
     }
 
