@@ -275,7 +275,6 @@ private struct GroupLabel: View {
     var body: some View {
         HStack(spacing: 3) {
             if repo == TabRepo.home { Image(systemName: "house.fill") }
-            if repo == TabRepo.humanTasks.name { Image(systemName: "flag.fill") }
             if let remote { Image(systemName: "network").help("On \(remote)") }
             Text(repo.isEmpty ? "other" : repo)
         }

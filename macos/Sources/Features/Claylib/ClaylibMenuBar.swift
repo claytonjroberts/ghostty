@@ -2,9 +2,8 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Claylib: one menu bar item with the number of open terminal tabs and of human tasks and
-/// questions waiting on Clayton. Its popover lists the tasks in full, then the tabs by repo, each
-/// with its Claude status; choosing a tab brings it forward.
+/// Claylib: one menu bar item with the number of open terminal tabs. Its popover lists the tabs by
+/// repo, each with its Claude status; choosing a tab brings it forward.
 @MainActor
 final class ClaylibMenuBar: NSObject, ObservableObject {
     static let shared = ClaylibMenuBar()
@@ -18,17 +17,16 @@ final class ClaylibMenuBar: NSObject, ObservableObject {
 
     func install() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: "Terminals and human tasks")
+        item.button?.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: "Terminals")
         item.button?.imagePosition = .imageLeading
         item.button?.target = self
         item.button?.action = #selector(toggle)
         self.item = item
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: ClaylibMenuView(menu: self, tasks: .shared))
+        popover.contentViewController = NSHostingController(rootView: ClaylibMenuView(menu: self))
         // Tabs open and close with ClaylibTabs; Claude status changes with ClaudeSessions.
         ClaylibTabs.shared.$revision.sink { [weak self] _ in self?.updateTitle() }.store(in: &cancellables)
         ClaudeSessions.shared.$byTTY.sink { [weak self] _ in self?.updateTitle() }.store(in: &cancellables)
-        HumanTasks.shared.$tasks.sink { [weak self] _ in self?.updateTitle() }.store(in: &cancellables)
     }
 
     /// Every terminal tab, window by window, in tab order.
@@ -46,8 +44,7 @@ final class ClaylibMenuBar: NSObject, ObservableObject {
         // sends before the property is set.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            let actions = HumanTasks.shared.openActions.count, questions = HumanTasks.shared.openQuestions.count
-            item?.button?.title = " \(tabs.count)" + (actions > 0 ? "  ⚑\(actions)" : "") + (questions > 0 ? "  ?\(questions)" : "")
+            item?.button?.title = " \(tabs.count)"
         }
     }
 
@@ -58,7 +55,6 @@ final class ClaylibMenuBar: NSObject, ObservableObject {
             return
         }
         restorable = OpenSessions.shared.restorable
-        HumanTasks.shared.visit()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
     }
@@ -79,15 +75,12 @@ final class ClaylibMenuBar: NSObject, ObservableObject {
 
 struct ClaylibMenuView: View {
     @ObservedObject var menu: ClaylibMenuBar
-    @ObservedObject var tasks: HumanTasks
     @ObservedObject private var tabRevisions = ClaylibTabs.shared
     @ObservedObject private var sessions = ClaudeSessions.shared
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                HumanTasksView(model: tasks)
-                Divider()
                 terminals
             }
             .padding(14)
